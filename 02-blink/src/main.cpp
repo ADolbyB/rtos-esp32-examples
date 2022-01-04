@@ -3,6 +3,8 @@
  * January 3, 2022
  * Blink LED at different rates using separate tasks
  * This uses the FastLED library to show each task blink change using the RGB LED on GPIO_2
+ * Ideally, if we had 4 separate LED colors instead of 3 for our RGB, we could assign 2 colors 
+ * to each task, so we can visually follow when each task toggles the LED on pin 13
 */
 
 #include <Arduino.h>
