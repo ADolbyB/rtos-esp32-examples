@@ -64,7 +64,7 @@ void toggleLED_2(void *parameter)
     FastLED.show();
     vTaskDelay(rate_2 / portTICK_PERIOD_MS);      // delay / blink at rate_2 = 323 ms
     digitalWrite(led_pin, LOW);
-    leds[0] = CRGB::Black;                   		  // Turn on Green LED when task 2 activates LED
+    leds[0] = CRGB::Black;                   		  // Turn off Green LED when task 2 deactivates LED
     FastLED.show();
     vTaskDelay(rate_2 / portTICK_PERIOD_MS);
   }
