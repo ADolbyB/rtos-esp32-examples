@@ -12,12 +12,12 @@
 
 /* Directives for FastLED.h */
 
-#define LED_PIN 2                   				    // Pin 2 on Thing Plus C is connected to WS2812 LED
-#define COLOR_ORDER GRB                 			    // RGB LED in top right corner
+#define LED_PIN 2                                       // Pin 2 on Thing Plus C is connected to WS2812 LED
+#define COLOR_ORDER GRB                                 // RGB LED in top right corner
 #define CHIPSET WS2812
 #define NUM_LEDS 1
 #define BRIGHTNESS 25
-CRGB leds[NUM_LEDS];                    			    // Array for LEDS on GPIO_2
+CRGB leds[NUM_LEDS];                                    // Array for LEDS on GPIO_2
 
 /* Directives for multicore systems */
 
@@ -75,7 +75,7 @@ void setup()
 
     pinMode(led_pin, OUTPUT);                           // configure pin 13 for output
 
-    leds[0] = CRGB::White;                   		    // Power up all Pin 2 LEDs for Power On Test
+    leds[0] = CRGB::White;                              // Power up all Pin 2 LEDs for Power On Test
     FastLED.show();
     delay(1000);                                        // Blocking delay for 1 second prevents tasks from executing
 
