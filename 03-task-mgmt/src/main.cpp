@@ -42,6 +42,7 @@ void startTask1(void *parameter)
         for (int i = 0; i < msg_len; i++)
             {
                 Serial.print(msg[i]);                       // Print string to Terminal 1 character at a time
+                vTaskDelay(25 / portTICK_PERIOD_MS);        // 25 ms delay after each letter is printed
             }
         Serial.println();                                   // Print a newline '\n' in terminal
         vTaskDelay(1000 / portTICK_PERIOD_MS);              // 1 second delay after printing
@@ -91,6 +92,7 @@ void setup()
                             app_cpu);                       // CPU Core which runs task 
 }
 
+// Loop() is a 3rd task that controls the other 2 tasks
 void loop()
 {
     for (int i = 0; i < 3; i++) 
