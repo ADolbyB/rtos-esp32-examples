@@ -16,6 +16,7 @@
     static const BaseType_t app_cpu = 1;
 #endif
 
+static int counter = 0;                                         // Track # of items in queue
 static const uint8_t queue_len = 5;                             // Maximum Queue Size
 static QueueHandle_t msg_queue;                                 // Declare a Global Queue Object
 
@@ -27,11 +28,17 @@ void printMessagesTask(void *param)                             // Task Function
     {
         if(xQueueReceive(msg_queue, (void *)&read_item, 0) == pdTRUE)   // remove item from queue
         {
+            Serial.println("*** Item Removed From Queue ***");
+            if(counter > 0)
+            {
+                counter--;                                      // Decrement queue counter when item read.
+            }
+            Serial.print("Items in Queue After Remove: ");
             Serial.println(read_item);                          // Print item removed from queue
         }
         else
         {
-            Serial.println("Queue Empty!!!");
+            Serial.println("Error: Queue Empty!!!");
         }
         vTaskDelay(1000 / portTICK_PERIOD_MS);                  // Wait until reading queue again
     }
@@ -59,12 +66,16 @@ void setup()
 
 void loop()
 {
-    static int counter = 0;
-
-    if(xQueueSend(msg_queue, (void *)&counter, 10) != pdTRUE)   // Try to add item to queue for 10 ticks
+    if(xQueueSend(msg_queue, (void *)&counter, 10) == pdTRUE)   // Try to add item to queue for 10 ticks
+    {
+        Serial.println("*** Item Added to Queue ***");
+        counter++;                                              // Increment counter if item is added.
+        Serial.print("Items in Queue After Adding: ");
+        Serial.println(counter);                                // Print item added to queue
+    }
+    else // if item is not added to queue
     {
         Serial.println("Error: Queue Is Full!!");               // Print error message if failed to add to queue
     }
-    counter++;
-    vTaskDelay(1000 / portTICK_PERIOD_MS);                       // 1 sec delay before adding to queue again
+    vTaskDelay(1000 / portTICK_PERIOD_MS);                      // 1 sec delay before adding to queue again
 }
