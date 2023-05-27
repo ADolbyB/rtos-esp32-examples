@@ -2,7 +2,11 @@
  * Joel Brigida
  * May 26, 2023
  * NOTE: FreeRTOS Semaphore/Mutex API reference: https://freertos.org/a00113.html
- * 
+ * This program simulates a queue using a shared buffer, semaphores and a mutex.
+ * The consumer tasks attempt to read the shared buffer, while the producer tasks
+ * attempt to write the shared buffer.
+ * Each producer task writes its task number to the buffer 3 times.
+ * Each consumer task reads anything it finds in the buffer.
  */
 
 #include <Arduino.h>
@@ -19,7 +23,10 @@ static const int numProducerTasks = 5;                      // Number of produce
 static const int numConsumerTasks = 2;                      // Number of consumer tasks
 static const int numWrites = 3;                             // Each task writes to buffer 3 times
 
-static SemaphoreHandle_t semBinary;                         // Declare global binary semaphore
+static SemaphoreHandle_t semBinary;                         // Waits for parameter to be read
+static SemaphoreHandle_t mutex;                             // Protect critical section: buffer & serial
+static SemaphoreHandle_t semEmpty;                          // Count empty slots in buffer
+static SemaphoreHandle_t semFilled;                         // Count filled slots in buffer
 static int buffer[BUFFER_SIZE];                             // Shared buffer
 static int head = 0;                                        // Write index to buffer
 static int tail = 0;                                        // Read index to buffer
@@ -30,8 +37,11 @@ void consumerTask(void *param);                             // Consumer Task dec
 void setup()
 {
     char taskName[20];
-    semBinary = xSemaphoreCreateBinary();
     int i, j;
+    semBinary = xSemaphoreCreateBinary();                   // Instantiate all semaphores
+    mutex = xSemaphoreCreateMutex();
+    semEmpty = xSemaphoreCreateCounting(BUFFER_SIZE, BUFFER_SIZE);
+    semFilled = xSemaphoreCreateCounting(BUFFER_SIZE, 0);
 
     Serial.begin(115200);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
@@ -67,7 +77,11 @@ void setup()
         );
     }
 
-    Serial.println("\n*** All Tasks Have Been Created ***");
+    xSemaphoreTake(mutex, portMAX_DELAY);                   // Wait for serial port availability
+    
+    Serial.println("\n*** All Tasks Created ***\n");        // Critical Section
+
+    xSemaphoreGive(mutex);
 
 }
 
@@ -85,8 +99,15 @@ void producerTask(void *param)                              // Producer writes t
 
     for(i = 0; i < numWrites; i++)                          // Fill Shared buffer with task number
     {
-        buffer[head] = num;                                 // Critical Section: Shared Buffer
+        xSemaphoreTake(semEmpty, portMAX_DELAY);            // Wait for empty buffer slot
+        xSemaphoreTake(mutex, portMAX_DELAY);               // Lock critial section w/ mutex
+
+        buffer[head] = num;                                 // Critical Section: write Buffer
         head = (head + 1) % BUFFER_SIZE;
+
+        xSemaphoreGive(mutex);                              // Unlock critial section
+        xSemaphoreGive(semFilled);                          // Signal Consumer Tasks: 1 buffer slot filled
+
     }
 
     vTaskDelay(10 / portTICK_PERIOD_MS);                    // 10ms delay
@@ -99,8 +120,15 @@ void consumerTask(void *param)                              // Consumer reads fr
 
     for(;;)                                                 // Read from buffer
     {
-        someVal = buffer[tail];
+        xSemaphoreTake(semFilled, portMAX_DELAY);           // Wait for a buffer slot to be filled
+        xSemaphoreTake(mutex, portMAX_DELAY);               // Lock critical section
+
+        someVal = buffer[tail];                             // Critical section: read buffer
         tail = (tail + 1) % BUFFER_SIZE;
-        Serial.println(someVal);
+        Serial.print(someVal);
+        Serial.print("  ");
+
+        xSemaphoreGive(mutex);                              // Release Critical Section
+        xSemaphoreGive(semEmpty);                           // Signal Producer Tasks: 1 Buffer Slot free
     }
 }
