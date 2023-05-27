@@ -38,8 +38,6 @@ void setup()                                                // setup() & loop() 
     Serial.print("Sending: ");
     Serial.println(ms_delay); 
 
-    xSemaphoreGive(mutex);                                  // Release mutex so it can be taken by blink task
-
     xTaskCreatePinnedToCore(                                // Instantiate Task
         blinkLEDTask,
         "LED Blink",
