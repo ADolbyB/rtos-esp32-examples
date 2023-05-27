@@ -85,7 +85,7 @@ void loop()
     vTaskDelay(1000 / portTICK_PERIOD_MS);                  // Yield to lower priority tasks
 }
 
-void producerTask(void *param)                              // Producer writes to shared buffer
+void producerTask(void *param)                              // Producer writes to queue
 {
     int num = *(int *)param;                                // Copy parameter to local memory
     int i;
@@ -101,12 +101,12 @@ void producerTask(void *param)                              // Producer writes t
     vTaskDelete(NULL);                                      // Self delete task
 }
 
-void consumerTask(void *param)                              // Consumer reads from shared buffer
+void consumerTask(void *param)                              // Consumer reads from queue
 {
     int someVal;
 
-    for(;;)                                                 // Read from buffer
-    {
+    for(;;)                                                 // Read item from queue
+    {                                                       // wait for an item to arrive in the queue
         xQueueReceive(messageQueue, (void *)&someVal, portMAX_DELAY);
 
         xSemaphoreTake(mutex, portMAX_DELAY);               // Lock critical section
