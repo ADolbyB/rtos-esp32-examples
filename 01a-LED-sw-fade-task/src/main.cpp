@@ -3,6 +3,7 @@
  * 5/30/2023
  * ESP32 LEDC function Software Fade using 'ledcWrite' function
  * This example fades the on-board LED (pin 13) using a single task.
+ * The Serial Terminal accepts integer values to change the speed of the fading effect
  */
 #include <Arduino.h>
 
@@ -26,7 +27,6 @@ void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 255)//
 {
     uint32_t duty = (4095 / valueMax) * min(value, valueMax);       // calculate duty cycle: 2^12 - 1 = 4095
     ledcWrite(channel, duty);                                       // write duty cycle to LEDC
-
 }
 
 void LEDfadeTask(void *param)
@@ -41,37 +41,38 @@ void LEDfadeTask(void *param)
             fadeInterval = -fadeInterval;
         }
         
-        vTaskDelay(delayInterval / portTICK_PERIOD_MS);             // 30ms delay (non blocking)
+        vTaskDelay(delayInterval / portTICK_PERIOD_MS);             // CLI adjustable delay (non blocking)
     }
 }
 
-void readSerial(void *parameters)           // Function Definition for Task 2
+void readSerial(void *param)                                        // Function Definition for Task 2
 {
-    char input;                             // Each Character Input
-    char buf[bufLen];                       // Array to hold user input characters
-    uint8_t index = 0;                      // Number of characters entered by user.
-    memset(buf, 0, bufLen);                 // Clear the buffer 1st
+    char input;                                                     // Each Character Input
+    char buf[bufLen];                                               // Array to hold user input characters
+    uint8_t index = 0;                                              // Number of characters entered by user.
+    memset(buf, 0, bufLen);                                         // Clear the buffer 1st
 
     for(;;)
     {
-        if(Serial.available() > 0)          // Check If Serial Terminal is open.
+        if(Serial.available() > 0)                                  // Check If Serial Terminal is open.
         {
-            input = Serial.read();          // Read user input from serial terminal
-            if(input == '\n')               // Update delay only if Enter key is pressed.
+            input = Serial.read();                                  // Read user input from serial terminal
+            if(input == '\n')                                       // Update delay only if Enter key is pressed.
             {
-                delayInterval = atoi(buf);
-                Serial.print("New LED Delay = ");
+                delayInterval = atoi(buf);                          // parse integers from CLI
+                Serial.print("\nNew LED Delay = ");
                 Serial.print(delayInterval);
                 Serial.println("ms");
-                memset(buf, 0, bufLen);    // Clear buffer after user input read.
-                index = 0;                  // Reset index
+                memset(buf, 0, bufLen);                             // Clear buffer after user input read.
+                index = 0;                                          // Reset index
             }
             else
             {
-                if(index < bufLen - 1)     // Only append if index < message limit.
+                if(index < bufLen - 1)                              // Only append if index < message limit.
                 {
                     buf[index] = input;
                     index++;
+                    Serial.print(input);                            // Echo user input to the terminal
                 }
             }
         }
