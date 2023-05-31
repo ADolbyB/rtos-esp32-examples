@@ -16,9 +16,11 @@ static const int LEDCchan = 0;                                      // use LEDC 
 static const int LEDCtimer = 12;                                    // 12-bit precision LEDC timer
 static const int LEDCfreq = 5000;                                   // 5000 Hz LEDC base freq.
 static const int LEDpin = LED_BUILTIN;                              // Use pin 13 on-board LED for SW fading
+static const uint8_t bufLen = 20;                                   // Buffer Length setting for user CLI terminal
 
 static int brightness = 0;                                          // LED brightness
 static int fadeInterval = 5;                                        // LED fade interval
+static int delayInterval = 30;                                      // Delay between changing fade intervals
 
 void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 255)// 'value' must be between 0 & 'valueMax'
 {
@@ -39,7 +41,40 @@ void LEDfadeTask(void *param)
             fadeInterval = -fadeInterval;
         }
         
-        vTaskDelay(30 / portTICK_PERIOD_MS);                        // 30ms delay (non blocking)
+        vTaskDelay(delayInterval / portTICK_PERIOD_MS);             // 30ms delay (non blocking)
+    }
+}
+
+void readSerial(void *parameters)           // Function Definition for Task 2
+{
+    char input;                             // Each Character Input
+    char buf[bufLen];                       // Array to hold user input characters
+    uint8_t index = 0;                      // Number of characters entered by user.
+    memset(buf, 0, bufLen);                 // Clear the buffer 1st
+
+    for(;;)
+    {
+        if(Serial.available() > 0)          // Check If Serial Terminal is open.
+        {
+            input = Serial.read();          // Read user input from serial terminal
+            if(input == '\n')               // Update delay only if Enter key is pressed.
+            {
+                delayInterval = atoi(buf);
+                Serial.print("New LED Delay = ");
+                Serial.print(delayInterval);
+                Serial.println("ms");
+                memset(buf, 0, bufLen);    // Clear buffer after user input read.
+                index = 0;                  // Reset index
+            }
+            else
+            {
+                if(index < bufLen - 1)     // Only append if index < message limit.
+                {
+                    buf[index] = input;
+                    index++;
+                }
+            }
+        }
     }
 }
 
@@ -52,9 +87,9 @@ void setup()
     ledcSetup(LEDCchan, LEDCfreq, LEDCtimer);                       // Setup LEDC timer 
     ledcAttachPin(LEDpin, LEDCchan);                                // Attach timer to LED pin
 
-    Serial.println("LEDC Setup Complete: Creating Task...");        // debug
+    Serial.println("LEDC Setup Complete: Creating Tasks...");       // debug
 
-    xTaskCreatePinnedToCore(                                        // Instantiate task for LED fading
+    xTaskCreatePinnedToCore(                                        // Instantiate LED fade task
         LEDfadeTask,
         "Fade LED On and Off",
         1536,
@@ -64,7 +99,20 @@ void setup()
         app_cpu
     );
 
-    Serial.println("LEDC Task Instantiation Complete");
+    Serial.println("LEDC Task Instantiation Complete");             // debug
+
+    xTaskCreatePinnedToCore(                                        // Instantiate readSerial task
+        readSerial,
+        "Read Serial",
+        1536,
+        NULL,
+        1,
+        NULL,
+        app_cpu
+    );
+
+    Serial.println("readSerial Task Instantiation Complete");       // debug
+    Serial.println("Enter an Integer Value in ms to change fade speed: ");
 
     vTaskDelete(NULL);                                              // Self Delete Setup() & Loop()
 }
