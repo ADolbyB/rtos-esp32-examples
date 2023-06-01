@@ -26,7 +26,7 @@ static const int LEDCfreq = 5000;                                   // 5000 Hz L
 static const int LEDblue = LED_BUILTIN;                             // Use pin 13 blue LED for SW fading
 static const uint8_t bufLen = 20;                                   // Buffer Length setting for user CLI terminal
 
-static int brightness = 25;                                         // Initial Brightness value
+static int brightness = 65;                                         // Initial Brightness value
 static int fadeInterval = 5;                                        // LED fade interval
 static int delayInterval = 30;                                      // Delay between changing fade intervals
 
@@ -58,7 +58,7 @@ void RGBcolorWheelTask(void *param)
             if(brightness <= 0)                                     // Only change color if value <= 0
             {
                 colorIndex++;                                       // Change color
-                if(colorIndex > 2)
+                if(colorIndex > 8)
                 {
                     colorIndex = 0;                         
                 }
@@ -68,21 +68,63 @@ void RGBcolorWheelTask(void *param)
                     case 0:
                     {
                         //Serial.println("Red Case 0");             // debug
-                        leds[0] = CRGB::Red;
+                        leds[0] = CHSV(0, 255, 255);                // HUE_RED
                         FastLED.show();
                         break;
                     }
                     case 1:
                     {
-                        //Serial.println("Green Case 1");
-                        leds[0] = CRGB::Green;
+                        //Serial.println("Orange Case 1");
+                        leds[0] = CHSV(32, 255, 255);               // HUE_ORANGE
                         FastLED.show();
                         break;
                     }
                     case 2:
                     {
-                        //Serial.println("Blue Case 2");
-                        leds[0] = CRGB::Blue;
+                        //Serial.println("Yellow Case 2");
+                        leds[0] = CHSV(64, 255, 255);               // HUE_YELLOW
+                        FastLED.show();
+                        break;
+                    }
+                    case 3:
+                    {
+                        //Serial.println("Green Case 3");
+                        leds[0] = CHSV(96, 255, 255);               // HUE_GREEN
+                        FastLED.show();
+                        break;
+                    }
+                    case 4:
+                    {
+                        //Serial.println("Aqua Case 4");
+                        leds[0] = CHSV(128, 255, 255);              // HUE_AQUA
+                        FastLED.show();
+                        break;
+                    }
+                    case 5:
+                    {
+                        //Serial.println("Blue Case 5");
+                        leds[0] = CHSV(160, 255, 255);              // HUE_BLUE
+                        FastLED.show();
+                        break;
+                    }
+                    case 6:
+                    {
+                        //Serial.println("Purple Case 6");
+                        leds[0] = CHSV(192, 255, 255);              // HUE_PURPLE
+                        FastLED.show();
+                        break;
+                    }
+                    case 7:
+                    {
+                        //Serial.println("Pink Case 7");
+                        leds[0] = CHSV(224, 255, 255);              // HUE_PINK
+                        FastLED.show();
+                        break;
+                    }
+                    case 8:
+                    {
+                        //Serial.println("White Case 8");
+                        leds[0] = CRGB::White;
                         FastLED.show();
                         break;
                     }
