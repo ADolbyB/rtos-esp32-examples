@@ -1,6 +1,6 @@
-*/.pio
-*/.vscode
-*/include/README
-*/lib/README
-*/test/README
-*/platformio.ini
+*/*/.pio
+*/*/.vscode
+*/*/include/
+*/*/lib/
+*/*/test/
+*/*/platformio.ini
