@@ -67,8 +67,8 @@ void userCommandTask(void *param)                                   // Function 
                 
                 if(memcmp(buffer, command, command_len) == 0)       // If 1st 6 characters are 'delay'
                 {                                                   // Ref: https://cplusplus.com/reference/cstring/memcmp/
-                    char* tail = buffer + command_len;              // retrieve integer value from buffer
-                    led_delay = atoi(tail);                         // convert tail to integer
+                    char* tail = buffer + command_len;              // declare & move a pointer to the integer value at the end of the buffer string
+                    led_delay = atoi(tail);                         // retreive integer value at end of string
                     led_delay = abs(led_delay);                     // led_delay can't be negative
 
                     if(xQueueSend(delay_queue, (void *)&led_delay, 10) != pdTRUE) // Send to delay_queue & evaluate
