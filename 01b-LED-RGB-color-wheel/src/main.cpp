@@ -100,6 +100,40 @@ void RGBcolorWheelTask(void *param)
     }
 }
 
+void readSerial(void *param)                                        // Function Definition for Task 2
+{
+    char input;                                                     // Each Character Input
+    char buf[bufLen];                                               // Array to hold user input characters
+    uint8_t index = 0;                                              // Number of characters entered by user.
+    memset(buf, 0, bufLen);                                         // Clear the buffer 1st
+
+    for(;;)
+    {
+        if(Serial.available() > 0)                                  // Check If Serial Terminal is open.
+        {
+            input = Serial.read();                                  // Read user input from serial terminal
+            if(input == '\n')                                       // Update delay only if Enter key is pressed.
+            {
+                delayInterval = atoi(buf);                          // parse integers from CLI
+                Serial.print("\nNew LED Delay = ");
+                Serial.print(delayInterval);
+                Serial.println("ms");
+                memset(buf, 0, bufLen);                             // Clear buffer after user input read.
+                index = 0;                                          // Reset index
+            }
+            else
+            {
+                if(index < bufLen - 1)                              // Only append if index < message limit.
+                {
+                    buf[index] = input;
+                    index++;
+                    Serial.print(input);                            // Echo user input to the terminal
+                }
+            }
+        }
+    }
+}
+
 void setup()
 {
     Serial.begin(115200);
@@ -132,7 +166,20 @@ void setup()
         app_cpu
     );
 
-    Serial.println("RGB LED Task Instantiation Complete");             // debug
+    Serial.println("RGB LED Task Instantiation Complete");          // debug
+
+    xTaskCreatePinnedToCore(                                        // Instantiate readSerial task
+        readSerial,
+        "Read Serial",
+        1536,
+        NULL,
+        1,
+        NULL,
+        app_cpu
+    );
+
+    Serial.println("readSerial Task Instantiation Complete");       // debug
+    Serial.println("Enter an Integer Value in ms to change fade speed: ");
 
     vTaskDelete(NULL);                                              // Self Delete setup() & loop()
 }
