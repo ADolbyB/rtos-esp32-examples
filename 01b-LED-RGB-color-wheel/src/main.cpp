@@ -20,10 +20,6 @@
 #define CHIPSET WS2812
 #define NUM_LEDS 1                                                  // Only 1 RGB LED on the ESP32 Thing Plus
 
-static const int LEDCchan = 0;                                      // use LEDC Channel 0
-static const int LEDCtimer = 12;                                    // 12-bit precision LEDC timer
-static const int LEDCfreq = 5000;                                   // 5000 Hz LEDC base freq.
-static const int LEDblue = LED_BUILTIN;                             // Use pin 13 blue LED for SW fading
 static const uint8_t bufLen = 20;                                   // Buffer Length setting for user CLI terminal
 
 static int brightness = 65;                                         // Initial Brightness value
@@ -31,12 +27,6 @@ static int fadeInterval = 5;                                        // LED fade 
 static int delayInterval = 30;                                      // Delay between changing fade intervals
 
 CRGB leds[NUM_LEDS];                                                // Array for RGB LED on GPIO_2
-
-void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 255)// 'value' must be between 0 & 'valueMax'
-{
-    uint32_t duty = (4095 / valueMax) * min(value, valueMax);       // calculate duty cycle: 2^12 - 1 = 4095
-    ledcWrite(channel, duty);                                       // write duty cycle to LEDC
-}
 
 void RGBcolorWheelTask(void *param)
 {
@@ -46,7 +36,6 @@ void RGBcolorWheelTask(void *param)
 
     for(;;)
     {
-        ledcAnalogWrite(LEDCchan, brightness);                      // Set brightness on LEDC channel 0
         brightness += fadeInterval;                                 // Adjust brightness by fadeInterval
         FastLED.setBrightness(brightness);
         FastLED.show();
@@ -113,9 +102,6 @@ void setup()
 
     FastLED.addLeds <CHIPSET, LED_PIN, COLOR_ORDER> (leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
     FastLED.setBrightness(brightness);
-    
-    ledcSetup(LEDCchan, LEDCfreq, LEDCtimer);                       // Setup LEDC timer 
-    ledcAttachPin(LED_PIN, LEDCchan);                               // Attach timer to LED pin
 
     leds[0] = CRGB::White;                                          // Power up all Pin 2 LEDs for Power On Test
     FastLED.show();
