@@ -42,7 +42,7 @@ void RGBcolorWheelTask(void *param)
 {
     leds[0] = CRGB::Red;
     FastLED.show();
-    int colorIndex = 0;                                             // Case variable to change color
+    int hueVal = 0;                                                 // add 32 each time...
 
     for(;;)
     {
@@ -57,85 +57,13 @@ void RGBcolorWheelTask(void *param)
             
             if(brightness <= 0)                                     // Only change color if value <= 0
             {
-                colorIndex++;                                       // Change color
-                if(colorIndex > 8)
+                hueVal += 32;                                       // Change color
+                if(hueVal >= 255)
                 {
-                    colorIndex = 0;                         
+                    hueVal = 0;                         
                 }
-                
-                switch(colorIndex)
-                {
-                    case 0:
-                    {
-                        //Serial.println("Red Case 0");             // debug
-                        leds[0] = CHSV(0, 255, 255);                // HUE_RED
-                        FastLED.show();
-                        break;
-                    }
-                    case 1:
-                    {
-                        //Serial.println("Orange Case 1");
-                        leds[0] = CHSV(32, 255, 255);               // HUE_ORANGE
-                        FastLED.show();
-                        break;
-                    }
-                    case 2:
-                    {
-                        //Serial.println("Yellow Case 2");
-                        leds[0] = CHSV(64, 255, 255);               // HUE_YELLOW
-                        FastLED.show();
-                        break;
-                    }
-                    case 3:
-                    {
-                        //Serial.println("Green Case 3");
-                        leds[0] = CHSV(96, 255, 255);               // HUE_GREEN
-                        FastLED.show();
-                        break;
-                    }
-                    case 4:
-                    {
-                        //Serial.println("Aqua Case 4");
-                        leds[0] = CHSV(128, 255, 255);              // HUE_AQUA
-                        FastLED.show();
-                        break;
-                    }
-                    case 5:
-                    {
-                        //Serial.println("Blue Case 5");
-                        leds[0] = CHSV(160, 255, 255);              // HUE_BLUE
-                        FastLED.show();
-                        break;
-                    }
-                    case 6:
-                    {
-                        //Serial.println("Purple Case 6");
-                        leds[0] = CHSV(192, 255, 255);              // HUE_PURPLE
-                        FastLED.show();
-                        break;
-                    }
-                    case 7:
-                    {
-                        //Serial.println("Pink Case 7");
-                        leds[0] = CHSV(224, 255, 255);              // HUE_PINK
-                        FastLED.show();
-                        break;
-                    }
-                    case 8:
-                    {
-                        //Serial.println("White Case 8");
-                        leds[0] = CRGB::White;
-                        FastLED.show();
-                        break;
-                    }
-                    default:
-                    {   
-                        Serial.println("ERROR: Default Case! Turning off...");
-                        leds[0] = CRGB::Black;
-                        FastLED.show();
-                        break;
-                    }
-                }
+                leds[0] = CHSV(hueVal, 255, 255);                   // Rotate: Rd-Orng-Yel-Grn-Aqua-Blu-Purp-Pnk
+                FastLED.show();
             }
         } 
         vTaskDelay(delayInterval / portTICK_PERIOD_MS);             // CLI adjustable delay (non blocking)
@@ -157,6 +85,7 @@ void readSerial(void *param)                                        // Function 
             if(input == '\n')                                       // Update delay only if Enter key is pressed.
             {
                 delayInterval = atoi(buf);                          // parse integers from CLI
+                delayInterval = abs(delayInterval);                 // BUGFIX: value can't be negative
                 Serial.print("\nNew LED Delay = ");
                 Serial.print(delayInterval);
                 Serial.println("ms");
