@@ -24,7 +24,6 @@ static const int LEDCchan = 0;                                      // use LEDC 
 static const int LEDCtimer = 12;                                    // 12-bit precision LEDC timer
 static const int LEDCfreq = 5000;                                   // 5000 Hz LEDC base freq.
 static const int LEDblue = LED_BUILTIN;                             // Use pin 13 blue LED for SW fading
-static const int RGBLED = 2;
 static const uint8_t bufLen = 20;                                   // Buffer Length setting for user CLI terminal
 
 static int brightness = 25;                                         // Initial Brightness value
@@ -43,6 +42,7 @@ void RGBcolorWheelTask(void *param)
 {
     leds[0] = CRGB::Red;
     FastLED.show();
+    int colorIndex = 0;                                             // Case variable to change color
 
     for(;;)
     {
@@ -51,11 +51,51 @@ void RGBcolorWheelTask(void *param)
         FastLED.setBrightness(brightness);
         FastLED.show();
 
-        if (brightness <= 0 || brightness >= 255)                   // Reverse fade effect at min/max values
+        if (brightness <= 0 || brightness >= 255)
         {
-            fadeInterval = -fadeInterval;
-        }
-        
+            fadeInterval = -fadeInterval;                           // Reverse fade effect
+            
+            if(brightness <= 0)                                     // Only change color if value <= 0
+            {
+                colorIndex++;                                       // Change color
+                if(colorIndex > 2)
+                {
+                    colorIndex = 0;                         
+                }
+                
+                switch(colorIndex)
+                {
+                    case 0:
+                    {
+                        //Serial.println("Red Case 0");             // debug
+                        leds[0] = CRGB::Red;
+                        FastLED.show();
+                        break;
+                    }
+                    case 1:
+                    {
+                        //Serial.println("Green Case 1");
+                        leds[0] = CRGB::Green;
+                        FastLED.show();
+                        break;
+                    }
+                    case 2:
+                    {
+                        //Serial.println("Blue Case 2");
+                        leds[0] = CRGB::Blue;
+                        FastLED.show();
+                        break;
+                    }
+                    default:
+                    {   
+                        Serial.println("ERROR: Default Case! Turning off...");
+                        leds[0] = CRGB::Black;
+                        FastLED.show();
+                        break;
+                    }
+                }
+            }
+        } 
         vTaskDelay(delayInterval / portTICK_PERIOD_MS);             // CLI adjustable delay (non blocking)
     }
 }
@@ -70,7 +110,7 @@ void setup()
     FastLED.setBrightness(brightness);
     
     ledcSetup(LEDCchan, LEDCfreq, LEDCtimer);                       // Setup LEDC timer 
-    ledcAttachPin(RGBLED, LEDCchan);                                // Attach timer to LED pin
+    ledcAttachPin(LED_PIN, LEDCchan);                               // Attach timer to LED pin
 
     leds[0] = CRGB::White;                                          // Power up all Pin 2 LEDs for Power On Test
     FastLED.show();
@@ -92,7 +132,7 @@ void setup()
         app_cpu
     );
 
-    Serial.println("LEDC Task Instantiation Complete");             // debug
+    Serial.println("RGB LED Task Instantiation Complete");             // debug
 
     vTaskDelete(NULL);                                              // Self Delete setup() & loop()
 }
