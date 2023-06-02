@@ -40,14 +40,9 @@ struct Command                                                      // Struct fo
     int num;
 };
 
-struct Message
-{
-    char msg[20];                                                   // Message does not need an integer
-};
-
 void userCLITask(void *param)                                       // Function definition for user CLI task
 {
-    Message sendMsg;                                                // Declare user message
+    Command sendMsg;                                                // Declare user message
     char input;                                                     // Each char of user input                                             
     char buffer[bufLen];                                            // buffer to hold user input
     int ledDelay;                                                   // blink delay in ms
@@ -85,8 +80,8 @@ void userCLITask(void *param)                                       // Function 
                 } 
                 else                                                // User is sending message (not a command)
                 {
-                    strcpy(sendMsg.msg, buffer);                    // Print user message to terminal
-                    xQueueSend(msgQueue, (void *)&sendMsg, 10);     // Send to msg_queue
+                    strcpy(sendMsg.cmd, buffer);                    // Print user message to terminal
+                    xQueueSend(msgQueue, (void *)&sendMsg, 10);     // Send to msgQueue
                 }
                 memset(buffer, 0, bufLen);                          // Clear input buffer
                 index = 0;                                          // Reset index counter.
@@ -101,15 +96,14 @@ void userCLITask(void *param)                                       // Function 
 
 void msgRXTask(void *param)
 {
-    Message someMsg;
+    Command someMsg;
 
     for(;;)
     {
-        if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE) // If message in queue
+        if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE) // If message received in queue
         {
             Serial.print("User Entered:  ");
-            Serial.print(someMsg.msg);                              // print user message
-            Serial.print("\n");
+            Serial.print(someMsg.cmd);                              // print user message
         }
     }
 }
@@ -123,12 +117,11 @@ void cmdRXTask(void *param)                                         // Task that
     {
         if(xQueueReceive(cmdQueue, (void *)&newDelay, 0) == pdTRUE)
         {
-            strcpy(someCmd.cmd, "New Delay Val: ");
             someCmd.num = newDelay;                                 // Display New Delay in millisec.
-            xQueueSend(msgQueue, (void *)&someCmd, 10);             // Place message in Message queue
             delayInterval = newDelay;                               // Change global delay variable
-            Serial.print("delayInterval = ");
-            Serial.println(delayInterval);                          // debug
+            Serial.print("New Delay Val: ");
+            Serial.print(delayInterval);
+            Serial.print("\n");
         }
     }
 }
