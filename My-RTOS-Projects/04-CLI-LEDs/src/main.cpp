@@ -98,7 +98,7 @@ void msgRXTask(void *param)
                 fadeAmt = abs(fadeAmt);                             // fadeAmt can't be negative
                 fadeInterval = fadeAmt;                             // Change global fade variable
                 Serial.print("New Fade Value: ");
-                Serial.print(fadeInterval);
+                Serial.print(fadeAmt);                              // BUGFIX: sometimes displays negative number
                 Serial.print("\n");
             }
             else if(memcmp(someMsg.cmd, delayCmd, delayLen) == 0)   // Check for 'delay' command
