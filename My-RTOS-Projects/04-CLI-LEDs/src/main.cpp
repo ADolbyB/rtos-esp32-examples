@@ -23,12 +23,13 @@
 static const uint8_t bufLen = 255;                                  // Buffer Length setting for user CLI terminal
 static const char delayCmd[] = "delay ";                            // delay command definition
 static const char fadeCmd[] = "fade ";                              // fade command definition
-static const int cmdQueueSize = 5;                                  // 5 elements in the command Queue
+static const char patternCmd[] = "pattern ";                        // pattern command definition
 static const int msgQueueSize = 5;                                  // 5 elements in message Queue
 
 static int brightness = 65;                                         // Initial Brightness value
 static int fadeInterval = 5;                                        // LED fade interval
 static int delayInterval = 30;                                      // Delay between changing fade intervals
+static int patternType = 0;                                         // LED pattern type variable
 
 static QueueHandle_t msgQueue;
 
@@ -81,8 +82,10 @@ void msgRXTask(void *param)
     Command someMsg;
     uint8_t delayLen = strlen(delayCmd);
     uint8_t fadeLen = strlen(fadeCmd);
-    int ledDelay;                                                   // blink delay in ms
-    int fadeAmt;
+    uint8_t patternLen = strlen(patternCmd);
+    short ledDelay;                                                 // blink delay in ms
+    short fadeAmt;
+    short pattern;
 
     for(;;)
     {
@@ -108,6 +111,16 @@ void msgRXTask(void *param)
                 Serial.print(delayInterval);
                 Serial.print("\n");
             }
+            else if(memcmp(someMsg.cmd, patternCmd, patternLen) == 0)// Check for 'pattern' command
+            {                                                       // Ref: https://cplusplus.com/reference/cstring/memcmp/
+                char* tailPtr = someMsg.cmd + patternLen;           // pointer arithmetic: move pointer to integer value
+                pattern = atoi(tailPtr);                            // retreive integer value at end of string
+                pattern = abs(pattern);                             // ledDelay can't be negative
+                patternType = pattern;                              // Change global pattern variable
+                Serial.print("New Pattern Type: ");
+                Serial.print(patternType);
+                Serial.print("\n");
+            }
             else // Not a command: Print the message to the terminal
             {
                 Serial.print("User Entered:  ");
@@ -121,27 +134,66 @@ void RGBcolorWheelTask(void *param)
 {
     leds[0] = CRGB::Red;
     FastLED.show();
-    int hueVal = 0;                                                 // add 32 each time...
+    short hueVal = 0;                                               // add 32 each time...
+    bool swap = false;                                              // Swap Red/Blue colors
 
     for(;;)
     {
-        brightness += fadeInterval;                                 // Adjust brightness by fadeInterval
-        if(brightness <= 0)                                         // Only change color if value <= 0
+        switch(patternType)
         {
-            brightness = 0;
-            fadeInterval = -fadeInterval;                           // Reverse fade effect
-            hueVal += 32;                                           // Change color
-            if(hueVal >= 255)
+            case 0:                                                 // Fade On/Off & cycle through 8 colors
             {
-                hueVal = 0;                         
+                brightness += fadeInterval;                         // Adjust brightness by fadeInterval
+                if(brightness <= 0)                                 // Only change color if value <= 0
+                {
+                    brightness = 0;
+                    fadeInterval = -fadeInterval;                   // Reverse fade effect
+                    hueVal += 32;                                   // Change color
+                    if(hueVal >= 255)
+                    {
+                        hueVal = 0;                         
+                    }
+                    leds[0] = CHSV(hueVal, 255, 255);               // Rotate: Rd-Orng-Yel-Grn-Aqua-Blu-Purp-Pnk
+                    FastLED.show();
+                }
+                else if(brightness >= 255)
+                {
+                    brightness = 255;
+                    fadeInterval = -fadeInterval;                   // Reverse fade effect
+                }
+                break;
             }
-            leds[0] = CHSV(hueVal, 255, 255);                       // Rotate: Rd-Orng-Yel-Grn-Aqua-Blu-Purp-Pnk
-            FastLED.show();
-        }
-        else if(brightness >= 255)
-        {
-            brightness = 255;
-            fadeInterval = -fadeInterval;                           // Reverse fade effect
+            case 1:                                                 // Fade On/Off Red/Blue Police Pattern
+            {
+                brightness += fadeInterval;                         // Adjust brightness by fadeInterval
+                if(brightness <= 0)                                 // Only change color if value <= 0
+                {
+                    brightness = 0;
+                    fadeInterval = -fadeInterval;                   // Reverse fade effect
+                    swap = !swap;                                   // swap colors
+                    if(swap)
+                    {
+                        leds[0] = CRGB::Blue;
+                    }
+                    else
+                    {
+                        leds[0] = CRGB::Red;
+                    }
+                    FastLED.show();
+                }
+                else if(brightness >= 255)
+                {
+                    brightness = 255;
+                    fadeInterval = -fadeInterval;                   // Reverse fade effect
+                }
+                break;
+            }
+            default:
+            {
+                Serial.println("Invalid Selection: Defaulting to Pattern 0");
+                patternType = 0;
+                break;
+            }
         }
         FastLED.setBrightness(brightness);
         FastLED.show();
@@ -208,6 +260,7 @@ void setup()
 
     Serial.print("\n\nEnter \'delay xxx\' to change RGB Fade Speed\n");
     Serial.print("Enter \'fade xxx\' to change RGB Fade Amount\n");
+    Serial.print("Enter \'pattern xxx\' to change RGB Pattern\n");
 
     vTaskDelete(NULL);                                              // Self Delete setup() & loop()
 }
