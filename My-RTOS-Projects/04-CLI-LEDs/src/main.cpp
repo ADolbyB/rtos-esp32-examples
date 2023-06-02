@@ -29,7 +29,7 @@ static const int msgQueueSize = 5;                                  // 5 element
 static int brightness = 65;                                         // Initial Brightness value
 static int fadeInterval = 5;                                        // LED fade interval
 static int delayInterval = 30;                                      // Delay between changing fade intervals
-static int patternType = 0;                                         // LED pattern type variable
+static int patternType = 1;                                         // LED pattern type variable
 
 static QueueHandle_t msgQueue;
 
@@ -141,7 +141,7 @@ void RGBcolorWheelTask(void *param)
     {
         switch(patternType)
         {
-            case 0:                                                 // Fade On/Off & cycle through 8 colors
+            case 1:                                                 // Fade On/Off & cycle through 8 colors
             {
                 brightness += fadeInterval;                         // Adjust brightness by fadeInterval
                 if(brightness <= 0)                                 // Only change color if value <= 0
@@ -154,16 +154,17 @@ void RGBcolorWheelTask(void *param)
                         hueVal = 0;                         
                     }
                     leds[0] = CHSV(hueVal, 255, 255);               // Rotate: Rd-Orng-Yel-Grn-Aqua-Blu-Purp-Pnk
-                    FastLED.show();
                 }
                 else if(brightness >= 255)
                 {
                     brightness = 255;
                     fadeInterval = -fadeInterval;                   // Reverse fade effect
                 }
+                FastLED.setBrightness(brightness);
+                FastLED.show();
                 break;
             }
-            case 1:                                                 // Fade On/Off Red/Blue Police Pattern
+            case 2:                                                 // Fade On/Off Red/Blue Police Pattern
             {
                 brightness += fadeInterval;                         // Adjust brightness by fadeInterval
                 if(brightness <= 0)                                 // Only change color if value <= 0
@@ -179,24 +180,36 @@ void RGBcolorWheelTask(void *param)
                     {
                         leds[0] = CRGB::Red;
                     }
-                    FastLED.show();
                 }
                 else if(brightness >= 255)
                 {
                     brightness = 255;
                     fadeInterval = -fadeInterval;                   // Reverse fade effect
                 }
+                FastLED.setBrightness(brightness);
+                FastLED.show();
+                break;
+            }
+            case 3:                                                 // Rotate Colors w/o fade
+            {
+                brightness = 250;
+                hueVal += 1;                                        // Change color
+                if(hueVal >= 255)
+                {
+                    hueVal = 0;                         
+                }
+                leds[0] = CHSV(hueVal, 255, 255);                   // Rotate Colors 0 - 255
+                FastLED.setBrightness(brightness);
+                FastLED.show();
                 break;
             }
             default:
             {
-                Serial.println("Invalid Selection: Defaulting to Pattern 0");
-                patternType = 0;
+                Serial.println("Invalid Selection: Defaulting to Pattern 1");
+                patternType = 1;
                 break;
             }
         }
-        FastLED.setBrightness(brightness);
-        FastLED.show();
         vTaskDelay(delayInterval / portTICK_PERIOD_MS);             // CLI adjustable delay (non blocking)
     }
 }
