@@ -22,6 +22,7 @@
 
 static const uint8_t bufLen = 255;                                  // Buffer Length setting for user CLI terminal
 static const char delayCmd[] = "delay ";                            // delay command definition
+static const char fadeCmd[] = "fade ";                              // fade command definition
 static const int cmdQueueSize = 5;                                  // 5 elements in the command Queue
 static const int msgQueueSize = 5;                                  // 5 elements in message Queue
 
@@ -78,20 +79,32 @@ void userCLITask(void *param)                                       // Function 
 void msgRXTask(void *param)
 {
     Command someMsg;
-    uint8_t cmdLen = strlen(delayCmd);
+    uint8_t delayLen = strlen(delayCmd);
+    uint8_t fadeLen = strlen(fadeCmd);
     int ledDelay;                                                   // blink delay in ms
+    int fadeAmt;
 
     for(;;)
     {
         if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE)  // If message received in queue
         {
-            if(memcmp(someMsg.cmd, delayCmd, cmdLen) == 0)          // Check for 'delay' command
+            if(memcmp(someMsg.cmd, fadeCmd, fadeLen) == 0)          // Check for 'fade' command
             {                                                       // Ref: https://cplusplus.com/reference/cstring/memcmp/
-                char* tailPtr = someMsg.cmd + cmdLen;               // pointer arithmetic: move pointer to integer value
+                char* tailPtr = someMsg.cmd + fadeLen;              // pointer arithmetic: move pointer to integer value
+                fadeAmt = atoi(tailPtr);                            // retreive integer value at end of string
+                fadeAmt = abs(fadeAmt);                             // fadeAmt can't be negative
+                fadeInterval = fadeAmt;                             // Change global fade variable
+                Serial.print("New Fade Value: ");
+                Serial.print(fadeInterval);
+                Serial.print("\n");
+            }
+            else if(memcmp(someMsg.cmd, delayCmd, delayLen) == 0)   // Check for 'delay' command
+            {                                                       // Ref: https://cplusplus.com/reference/cstring/memcmp/
+                char* tailPtr = someMsg.cmd + delayLen;             // pointer arithmetic: move pointer to integer value
                 ledDelay = atoi(tailPtr);                           // retreive integer value at end of string
                 ledDelay = abs(ledDelay);                           // ledDelay can't be negative
                 delayInterval = ledDelay;                           // Change global delay variable
-                Serial.print("New Delay Val: ");
+                Serial.print("New Delay Value: ");
                 Serial.print(delayInterval);
                 Serial.print("\n");
             }
