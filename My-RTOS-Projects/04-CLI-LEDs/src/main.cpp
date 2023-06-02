@@ -24,9 +24,11 @@ static const uint8_t bufLen = 255;                                  // Buffer Le
 static const char delayCmd[] = "delay ";                            // delay command definition
 static const char fadeCmd[] = "fade ";                              // fade command definition
 static const char patternCmd[] = "pattern ";                        // pattern command definition
+static const char brightCmd[] = "bright ";                          // brightness command (pattern 3 only)
 static const int msgQueueSize = 5;                                  // 5 elements in message Queue
 
 static int brightness = 65;                                         // Initial Brightness value
+static int brightVal = 250;                                         // Brightness Command initial value
 static int fadeInterval = 5;                                        // LED fade interval
 static int delayInterval = 30;                                      // Delay between changing fade intervals
 static int patternType = 1;                                         // LED pattern type variable
@@ -83,9 +85,11 @@ void msgRXTask(void *param)
     uint8_t delayLen = strlen(delayCmd);
     uint8_t fadeLen = strlen(fadeCmd);
     uint8_t patternLen = strlen(patternCmd);
+    uint8_t brightLen = strlen(brightCmd);
     short ledDelay;                                                 // blink delay in ms
     short fadeAmt;
     short pattern;
+    short bright;
 
     for(;;)
     {
@@ -102,7 +106,7 @@ void msgRXTask(void *param)
                 Serial.print("\n");
             }
             else if(memcmp(someMsg.cmd, delayCmd, delayLen) == 0)   // Check for 'delay' command
-            {                                                       // Ref: https://cplusplus.com/reference/cstring/memcmp/
+            {
                 char* tailPtr = someMsg.cmd + delayLen;             // pointer arithmetic: move pointer to integer value
                 ledDelay = atoi(tailPtr);                           // retreive integer value at end of string
                 ledDelay = abs(ledDelay);                           // ledDelay can't be negative
@@ -112,13 +116,23 @@ void msgRXTask(void *param)
                 Serial.print("\n");
             }
             else if(memcmp(someMsg.cmd, patternCmd, patternLen) == 0)// Check for 'pattern' command
-            {                                                       // Ref: https://cplusplus.com/reference/cstring/memcmp/
+            {
                 char* tailPtr = someMsg.cmd + patternLen;           // pointer arithmetic: move pointer to integer value
                 pattern = atoi(tailPtr);                            // retreive integer value at end of string
-                pattern = abs(pattern);                             // ledDelay can't be negative
+                pattern = abs(pattern);                             // patternType can't be negative
                 patternType = pattern;                              // Change global pattern variable
                 Serial.print("New Pattern Type: ");
                 Serial.print(patternType);
+                Serial.print("\n");
+            }
+            else if(memcmp(someMsg.cmd, brightCmd, brightLen) == 0) // Check for 'bright' command
+            {
+                char* tailPtr = someMsg.cmd + brightLen;            // pointer arithmetic: move pointer to integer value
+                bright = atoi(tailPtr);                             // retreive integer value at end of string
+                bright = abs(bright);                               // ledDelay can't be negative
+                brightVal = bright;                                 // Change global brightness variable
+                Serial.print("New Brightness: ");
+                Serial.print(brightVal);
                 Serial.print("\n");
             }
             else // Not a command: Print the message to the terminal
@@ -192,8 +206,8 @@ void RGBcolorWheelTask(void *param)
             }
             case 3:                                                 // Rotate Colors w/o fade
             {
-                brightness = 250;
-                hueVal += 1;                                        // Change color
+                brightness = brightVal;                             // Pull value from global integer
+                hueVal += fadeInterval;                             // Change color based on global value
                 if(hueVal >= 255)
                 {
                     hueVal = 0;                         
@@ -274,6 +288,7 @@ void setup()
     Serial.print("\n\nEnter \'delay xxx\' to change RGB Fade Speed\n");
     Serial.print("Enter \'fade xxx\' to change RGB Fade Amount\n");
     Serial.print("Enter \'pattern xxx\' to change RGB Pattern\n");
+    Serial.print("Enter \'bright xxx\' to change RGB Brightness (Only Pattern 3)\n");
 
     vTaskDelete(NULL);                                              // Self Delete setup() & loop()
 }
