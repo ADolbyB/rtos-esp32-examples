@@ -20,6 +20,10 @@
 #define CHIPSET WS2812                                              // Chipset for On-Board RGB LED
 #define NUM_LEDS 1                                                  // Only 1 RGB LED on the ESP32 Thing Plus
 
+static const int LEDCchan = 0;                                      // use LEDC Channel 0 for Blue LED
+static const int LEDCtimer = 12;                                    // 12-bit precision LEDC timer
+static const int LEDCfreq = 5000;                                   // 5000 Hz LEDC base freq.
+
 static const uint8_t bufLen = 255;                                  // Buffer Length setting for user CLI terminal
 static const char delayCmd[] = "delay ";                            // delay command definition
 static const char fadeCmd[] = "fade ";                              // fade command definition
@@ -144,6 +148,12 @@ void msgRXTask(void *param)
     }
 }
 
+void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 255)// 'value' must be between 0 & 'valueMax'
+{
+    uint32_t duty = (4095 / valueMax) * min(value, valueMax);       // calculate duty cycle: 2^12 - 1 = 4095
+    ledcWrite(channel, duty);                                       // write duty cycle to LEDC
+}
+
 void RGBcolorWheelTask(void *param)
 {
     leds[0] = CRGB::Red;
@@ -157,6 +167,7 @@ void RGBcolorWheelTask(void *param)
         {
             case 1:                                                 // Fade On/Off & cycle through 8 colors
             {
+                ledcAnalogWrite(LEDCchan, 0);
                 brightness += fadeInterval;                         // Adjust brightness by fadeInterval
                 if(brightness <= 0)                                 // Only change color if value <= 0
                 {
@@ -175,11 +186,11 @@ void RGBcolorWheelTask(void *param)
                     fadeInterval = -fadeInterval;                   // Reverse fade effect
                 }
                 FastLED.setBrightness(brightness);
-                FastLED.show();
                 break;
             }
             case 2:                                                 // Fade On/Off Red/Blue Police Pattern
             {
+                ledcAnalogWrite(LEDCchan, 0);
                 brightness += fadeInterval;                         // Adjust brightness by fadeInterval
                 if(brightness <= 0)                                 // Only change color if value <= 0
                 {
@@ -201,11 +212,11 @@ void RGBcolorWheelTask(void *param)
                     fadeInterval = -fadeInterval;                   // Reverse fade effect
                 }
                 FastLED.setBrightness(brightness);
-                FastLED.show();
                 break;
             }
             case 3:                                                 // Rotate Colors w/o fade
             {
+                ledcAnalogWrite(LEDCchan, 0);
                 brightness = brightVal;                             // Pull value from global integer
                 hueVal += fadeInterval;                             // Change color based on global value
                 if(hueVal >= 255)
@@ -214,7 +225,23 @@ void RGBcolorWheelTask(void *param)
                 }
                 leds[0] = CHSV(hueVal, 255, 255);                   // Rotate Colors 0 - 255
                 FastLED.setBrightness(brightness);
-                FastLED.show();
+                break;
+            }
+            case 4:
+            {
+                leds[0] = CRGB::Black;                              // Turn Off RGB LED
+                brightness += fadeInterval;                         // Adjust brightness by fadeInterval
+                if(brightness <= 0)                                 // Reverse fade effect at min/max values
+                {
+                    brightness = 0;
+                    fadeInterval = -fadeInterval;
+                }
+                else if(brightness >= 255)
+                {
+                    brightness = 255;
+                    fadeInterval = -fadeInterval;
+                }
+                ledcAnalogWrite(LEDCchan, brightness);              // Set brightness on LEDC channel 0
                 break;
             }
             default:
@@ -224,6 +251,7 @@ void RGBcolorWheelTask(void *param)
                 break;
             }
         }
+        FastLED.show();
         vTaskDelay(delayInterval / portTICK_PERIOD_MS);             // CLI adjustable delay (non blocking)
     }
 }
@@ -238,6 +266,9 @@ void setup()
 
     FastLED.addLeds <CHIPSET, RGB_LED, COLOR_ORDER> (leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
     FastLED.setBrightness(brightness);
+    
+    ledcSetup(LEDCchan, LEDCfreq, LEDCtimer);                       // Setup LEDC timer 
+    ledcAttachPin(BLUE_LED, LEDCchan);                              // Attach timer to LED pin
 
     leds[0] = CRGB::White;                                          // Power up all Pin 2 LEDs for Power On Test
     FastLED.show();
