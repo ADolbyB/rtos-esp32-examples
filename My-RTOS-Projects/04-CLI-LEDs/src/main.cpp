@@ -29,15 +29,13 @@ static int brightness = 65;                                         // Initial B
 static int fadeInterval = 5;                                        // LED fade interval
 static int delayInterval = 30;                                      // Delay between changing fade intervals
 
-static QueueHandle_t cmdQueue;                                      // Queues for commands & messages
 static QueueHandle_t msgQueue;
 
 CRGB leds[NUM_LEDS];                                                // Array for RGB LED on GPIO_2
 
 struct Command                                                      // Struct for user Commands
 {
-    char cmd[20];                                                   // Commands need a command & number
-    int num;
+    char cmd[25];                                                   // Each node is a string / char array
 };
 
 void userCLITask(void *param)                                       // Function definition for user CLI task
@@ -45,9 +43,7 @@ void userCLITask(void *param)                                       // Function 
     Command sendMsg;                                                // Declare user message
     char input;                                                     // Each char of user input                                             
     char buffer[bufLen];                                            // buffer to hold user input
-    int ledDelay;                                                   // blink delay in ms
     uint8_t index = 0;                                              // character count
-    uint8_t cmdLen = strlen(delayCmd);
 
     memset(buffer, 0, bufLen);                                      // Clear user input buffer
 
@@ -62,27 +58,12 @@ void userCLITask(void *param)                                       // Function 
                 buffer[index] = input;                              // write received character to buffer
                 index++;
             }
-
             if(input == '\n')                                       // Check when user presses ENTER key
             {
                 Serial.print("\n");
+                strcpy(sendMsg.cmd, buffer);                        // copy input to Command node
+                xQueueSend(msgQueue, (void *)&sendMsg, 10);         // Send to msgQueue for interpretation
                 
-                if(memcmp(buffer, delayCmd, cmdLen) == 0)           // Check for 'delay' command
-                {                                                   // Ref: https://cplusplus.com/reference/cstring/memcmp/
-                    char* tailPtr = buffer + cmdLen;                // pointer arithmetic: move pointer to integer value
-                    ledDelay = atoi(tailPtr);                       // retreive integer value at end of string
-                    ledDelay = abs(ledDelay);                       // led_delay can't be negative
-
-                    if(xQueueSend(cmdQueue, (void *)&ledDelay, 10) != pdTRUE) // Send to delay_queue & evaluate
-                    {
-                        Serial.println("ERROR: Could Not Put Item In Command Queue!");
-                    }
-                } 
-                else                                                // User is sending message (not a command)
-                {
-                    strcpy(sendMsg.cmd, buffer);                    // Print user message to terminal
-                    xQueueSend(msgQueue, (void *)&sendMsg, 10);     // Send to msgQueue
-                }
                 memset(buffer, 0, bufLen);                          // Clear input buffer
                 index = 0;                                          // Reset index counter.
             }
@@ -97,31 +78,28 @@ void userCLITask(void *param)                                       // Function 
 void msgRXTask(void *param)
 {
     Command someMsg;
+    uint8_t cmdLen = strlen(delayCmd);
+    int ledDelay;                                                   // blink delay in ms
 
     for(;;)
     {
-        if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE) // If message received in queue
+        if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE)  // If message received in queue
         {
-            Serial.print("User Entered:  ");
-            Serial.print(someMsg.cmd);                              // print user message
-        }
-    }
-}
-
-void cmdRXTask(void *param)                                         // Task that Recieves delay command
-{
-    Command someCmd;                                                // object declaration for serial message
-    int newDelay = 500;                                             // initial LED blink speed
-
-    for(;;)
-    {
-        if(xQueueReceive(cmdQueue, (void *)&newDelay, 0) == pdTRUE)
-        {
-            someCmd.num = newDelay;                                 // Display New Delay in millisec.
-            delayInterval = newDelay;                               // Change global delay variable
-            Serial.print("New Delay Val: ");
-            Serial.print(delayInterval);
-            Serial.print("\n");
+            if(memcmp(someMsg.cmd, delayCmd, cmdLen) == 0)          // Check for 'delay' command
+            {                                                       // Ref: https://cplusplus.com/reference/cstring/memcmp/
+                char* tailPtr = someMsg.cmd + cmdLen;               // pointer arithmetic: move pointer to integer value
+                ledDelay = atoi(tailPtr);                           // retreive integer value at end of string
+                ledDelay = abs(ledDelay);                           // ledDelay can't be negative
+                delayInterval = ledDelay;                           // Change global delay variable
+                Serial.print("New Delay Val: ");
+                Serial.print(delayInterval);
+                Serial.print("\n");
+            }
+            else // Not a command: Print the message to the terminal
+            {
+                Serial.print("User Entered:  ");
+                Serial.print(someMsg.cmd);                          // print user message
+            }
         }
     }
 }
@@ -163,8 +141,7 @@ void setup()
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     Serial.println("\n\n=>> FreeRTOS RGB LED Color Wheel Demo <<=");
 
-    cmdQueue = xQueueCreate(cmdQueueSize, sizeof(int));             // Instantiate Queue objects
-    msgQueue = xQueueCreate(msgQueueSize, sizeof(Command));
+    msgQueue = xQueueCreate(msgQueueSize, sizeof(Command));         // Instantiate message queue
 
     FastLED.addLeds <CHIPSET, RGB_LED, COLOR_ORDER> (leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
     FastLED.setBrightness(brightness);
@@ -202,18 +179,6 @@ void setup()
     );
 
     Serial.println("Message RX Task Instantiation Complete");
-
-    xTaskCreatePinnedToCore(                                        // Instantiate Command RX Task
-        cmdRXTask,
-        "Receive Commands",
-        1536,
-        NULL,
-        1,
-        NULL,
-        app_cpu
-    );
-
-    Serial.println("Command RX Task Instantiation Complete");
 
     xTaskCreatePinnedToCore(                                        // Instantiate LED fade task
         RGBcolorWheelTask,
