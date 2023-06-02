@@ -126,24 +126,25 @@ void RGBcolorWheelTask(void *param)
     for(;;)
     {
         brightness += fadeInterval;                                 // Adjust brightness by fadeInterval
+        if(brightness <= 0)                                         // Only change color if value <= 0
+        {
+            brightness = 0;
+            fadeInterval = -fadeInterval;                           // Reverse fade effect
+            hueVal += 32;                                           // Change color
+            if(hueVal >= 255)
+            {
+                hueVal = 0;                         
+            }
+            leds[0] = CHSV(hueVal, 255, 255);                       // Rotate: Rd-Orng-Yel-Grn-Aqua-Blu-Purp-Pnk
+            FastLED.show();
+        }
+        else if(brightness >= 255)
+        {
+            brightness = 255;
+            fadeInterval = -fadeInterval;                           // Reverse fade effect
+        }
         FastLED.setBrightness(brightness);
         FastLED.show();
-
-        if (brightness <= 0 || brightness >= 255)
-        {
-            fadeInterval = -fadeInterval;                           // Reverse fade effect
-            
-            if(brightness <= 0)                                     // Only change color if value <= 0
-            {
-                hueVal += 32;                                       // Change color
-                if(hueVal >= 255)
-                {
-                    hueVal = 0;                         
-                }
-                leds[0] = CHSV(hueVal, 255, 255);                   // Rotate: Rd-Orng-Yel-Grn-Aqua-Blu-Purp-Pnk
-                FastLED.show();
-            }
-        } 
         vTaskDelay(delayInterval / portTICK_PERIOD_MS);             // CLI adjustable delay (non blocking)
     }
 }
@@ -205,8 +206,8 @@ void setup()
 
     Serial.println("RGB LED Task Instantiation Complete");          // debug
 
-    Serial.print("\n\nEnter 'delay xxx' to change RGB Fade Speed:");
-    Serial.println("Any other message will be printed to the terminal");
+    Serial.print("\n\nEnter \'delay xxx\' to change RGB Fade Speed\n");
+    Serial.print("Enter \'fade xxx\' to change RGB Fade Amount\n");
 
     vTaskDelete(NULL);                                              // Self Delete setup() & loop()
 }
