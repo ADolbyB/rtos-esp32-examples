@@ -18,6 +18,9 @@
     static const BaseType_t app_cpu = 1;                                        // Only use CPU core 1
 #endif
 
+TickType_t mtxTimeout = (1000 / portTICK_PERIOD_MS);                            // 1 sec Mutex Timeout
+TickType_t taskDelay = (500 / portTICK_PERIOD_MS);                              // 0.5 sec Task Delays to simulate Work/Sleep
+
 static SemaphoreHandle_t mutex1;
 static SemaphoreHandle_t mutex2;
 
@@ -25,16 +28,16 @@ void highPriTaskA(void *param)                                                  
 {
     for(;;)
     {
-        if(xSemaphoreTake(mutex1, (1000 / portTICK_PERIOD_MS)) == pdTRUE)       // Take mutex1
+        if(xSemaphoreTake(mutex1, mtxTimeout) == pdTRUE)                        // Take mutex1
         {
             Serial.println("Task A Took Mutex 1...");
             vTaskDelay(1 / portTICK_PERIOD_MS);                                 // delay will force deadlock
 
-            if(xSemaphoreTake(mutex2, (1000 / portTICK_PERIOD_MS)) == pdTRUE)   // Take Mutex2
+            if(xSemaphoreTake(mutex2, mtxTimeout) == pdTRUE)                    // Take Mutex2
             {                     
                 Serial.println("Task A Took Mutex2...");
                 Serial.println("Task A Working in Critical Section");           // simulated critical section
-                vTaskDelay(500 / portTICK_PERIOD_MS);                           // delay simulates worktime
+                vTaskDelay(taskDelay);                                          // delay simulates worktime
                 xSemaphoreGive(mutex2);                                         // Give back mutexes in REVERSE order
                 xSemaphoreGive(mutex1);
                 Serial.println("Task A Released Both Mutexes: Going To Sleep");
@@ -49,7 +52,7 @@ void highPriTaskA(void *param)                                                  
         {
             Serial.println("Task A Timed Out Waiting For Mutex1");
         }
-        vTaskDelay(500 / portTICK_PERIOD_MS);                                   // Delay simulates sleep time
+        vTaskDelay(taskDelay);                                                  // Delay simulates sleep time
     }
 }
 
@@ -57,16 +60,16 @@ void lowPriTaskB(void *param)                                                   
 {
     for(;;)
     {
-        if(xSemaphoreTake(mutex2, (1000 / portTICK_PERIOD_MS)) == pdTRUE)       // Take mutex2
+        if(xSemaphoreTake(mutex2, mtxTimeout) == pdTRUE)                        // Take mutex2
         {
             Serial.println("Task B Took Mutex 2...");
             vTaskDelay(1 / portTICK_PERIOD_MS);                                 // delay will force deadlock
 
-            if(xSemaphoreTake(mutex1, (1000 / portTICK_PERIOD_MS)) == pdTRUE)   // Take Mutex1
+            if(xSemaphoreTake(mutex1, mtxTimeout) == pdTRUE)                    // Take Mutex1
             {                     
                 Serial.println("Task B Took Mutex1...");
                 Serial.println("Task B Working in Critical Section");           // simulated critical section
-                vTaskDelay(500 / portTICK_PERIOD_MS);                           // delay simulates worktime
+                vTaskDelay(taskDelay);                                          // delay simulates worktime
                 xSemaphoreGive(mutex1);                                         // Give back mutexes in REVERSE order
                 xSemaphoreGive(mutex2);
                 Serial.println("Task B Released Both Mutexes: Going To Sleep");
@@ -81,7 +84,7 @@ void lowPriTaskB(void *param)                                                   
         {
             Serial.println("Task B Timed Out Waiting For Mutex2");
         }
-        vTaskDelay(500 / portTICK_PERIOD_MS);                                   // Delay simulates sleep time
+        vTaskDelay(taskDelay);                                                  // Delay simulates sleep time
     }
 }
 
@@ -91,7 +94,7 @@ void setup()
     mutex2 = xSemaphoreCreateMutex();
     
     Serial.begin(115200);
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    vTaskDelay(taskDelay);
     Serial.print("\n\n=>> FreeRTOS Deadlock Demo <<=\n");
 
     xTaskCreatePinnedToCore(
