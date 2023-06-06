@@ -24,78 +24,101 @@ static SemaphoreHandle_t binSemaphore;                                          
 static SemaphoreHandle_t doneSemaphore;                                         // Notify Main Task when finished
 static SemaphoreHandle_t chopstick[NUM_TASKS];                                  // Only 5 total chopsticks for table. 2 are required for 1 person to eat.
 
-void eat(void *param)
+void eatTask(void *param)
 {
     int num;
     char buffer[50];
+    int index1, index2;
 
     num = *(int *)param;                                                        // Copy parameter & increment semaphore count.
     xSemaphoreGive(binSemaphore);
 
-    xSemaphoreTake(chopstick[num], portMAX_DELAY);                              // Take LEFT chopstick
-    sprintf(buffer, "Philosopher %i Took Chopstick %i", num, num);
-    Serial.println(buffer);
+    if(num < ((num + 1) % NUM_TASKS))
+    {
+        index1 = num;
+        index2 = ((num + 1) % NUM_TASKS);
+    }
+    else
+    {
+        index1 = ((num + 1) % NUM_TASKS);
+        index2 = num;
+    }
+
+    xSemaphoreTake(chopstick[index1], portMAX_DELAY);                           // Take Lower # chopstick 1st always
+    sprintf(buffer, "Eat 1: Philosopher %d Took Chopstick %d\n\n", num, num);
+    Serial.print(buffer);
 
     vTaskDelay(1 / portTICK_PERIOD_MS);                                         // Delay forces deadlock
 
-    xSemaphoreTake(chopstick[(num + 1) % NUM_TASKS], portMAX_DELAY);            // Take RIGHT chopstick
-    sprintf(buffer, "Philosopher %i Took Chopstick %i", num, ((num + 1) % NUM_TASKS));
-    Serial.println(buffer);
+    xSemaphoreTake(chopstick[index2], portMAX_DELAY);                           // Take Higher # chopstick 2nd always
+    sprintf(buffer, "Eat 2: Philosopher %d Took Chopstick %d\n\n", num, (num + 1) % NUM_TASKS);
+    Serial.print(buffer);
 
-    sprintf(buffer, "Philosopher %i is eating", num);                           // "Shared Resource" = eating
-    Serial.println(buffer);
+    sprintf(buffer, "Eat 3: Philosopher %d is eating\n\n", num);                           // "Shared Resource" = eating
+    Serial.print(buffer);
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
-    xSemaphoreGive(chopstick[(num + 1) % NUM_TASKS]);                           // Put down right chopstick
-    sprintf(buffer, "Philosopher %i Returned Chopstick %i", num, (num + 1) % NUM_TASKS);
-    Serial.println(buffer);
+    xSemaphoreGive(chopstick[index2]);                                          // Put down higher # chopstick 1st always
+    sprintf(buffer, "Eat 4: Philosopher %d Returned Chopstick %d\n\n", num, (num + 1) % NUM_TASKS);
+    Serial.print(buffer);
 
-    xSemaphoreGive(chopstick[num]);                                             // Put down left chopstick
-    sprintf(buffer, "Philosopher %i Returned Chopstick %i", num, num);
-    Serial.println(buffer);
+    xSemaphoreGive(chopstick[index1]);                                          // Put down lower # chopstick 2nd always
+    sprintf(buffer, "Eat 5: Philosopher %d Returned Chopstick %d\n\n", num, num);
+    Serial.print(buffer);
 
     xSemaphoreGive(doneSemaphore);                                              // Notify Main Task & Delete Self
+    sprintf(buffer, "Eat 6: Done...Deleting Task #%d Now...\n\n", num);
+    Serial.print(buffer);
     vTaskDelete(NULL);
 }
 
 void setup()
 {
-    char taskName[20];
+    char taskName[30];
+    char testBuffer[80];
     
     binSemaphore = xSemaphoreCreateBinary();
     doneSemaphore = xSemaphoreCreateCounting(NUM_TASKS, 0);
 
     Serial.begin(115200);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
-    Serial.println("\n\n=>> FreeRTOS Dining Philosopher\'s Challenge");
+    Serial.println("\n\n=>> FreeRTOS Dining Philosopher\'s Challenge: Hierarchy <<=\n");
     
     int i, j, k;
     for(i = 0; i < NUM_TASKS; i++)
     {
         chopstick[i] = xSemaphoreCreateMutex();
+        sprintf(testBuffer, "Setup 1: Created & Gave Mutex (chopstick) #%d\n", i);
+        Serial.print(testBuffer);
     }
+
+    Serial.print("\n");
     
     for(j = 0; j < NUM_TASKS; j++)                                              // Simulate 5 Philosophers Starting to eat
     {
-        sprintf(taskName, "Philosopher %i", i);
+        sprintf(taskName, "Philosopher %d", i);
         xTaskCreatePinnedToCore(
-            eat,
+            eatTask,
             taskName,
             TASK_STACK_SIZE,
-            (void *)&i,
+            (void *)&j,
             1,
             NULL,
             app_cpu
         );
         xSemaphoreTake(binSemaphore, portMAX_DELAY);
+        sprintf(testBuffer, "Setup 2: Task #%d Created & Took binSemaphore %d\n\n", j, j); // debug
+        Serial.print(testBuffer);
     }
 
     for(k = 0; k < NUM_TASKS; k++)
     {
         xSemaphoreTake(doneSemaphore, portMAX_DELAY);                           // All 5 philosophers have eaten
+        sprintf(testBuffer, "Setup 3: Task #%d Finished & Took doneSemaphore #%d\n\n", k, k);// debug
+        Serial.print(testBuffer);
     }
-
-    Serial.println("DONE! No Deadlock Occurred!");                              // Success Message
+    
+    Serial.print("\nDONE! No Deadlock Occurred!\n");                              // Success Message
 }
 
 void loop() {}
