@@ -54,7 +54,7 @@ void eatTask(void *param)
     sprintf(buffer, "Eat 2: Philosopher %d Took Chopstick %d\n\n", num, (num + 1) % NUM_TASKS);
     Serial.print(buffer);
 
-    sprintf(buffer, "Eat 3: Philosopher %d is eating\n\n", num);                           // "Shared Resource" = eating
+    sprintf(buffer, "Eat 3: Philosopher %d is eating\n\n", num);                // "Shared Resource" = eating
     Serial.print(buffer);
     vTaskDelay(10 / portTICK_PERIOD_MS);
 
@@ -107,18 +107,18 @@ void setup()
             app_cpu
         );
         xSemaphoreTake(binSemaphore, portMAX_DELAY);
-        sprintf(testBuffer, "Setup 2: Task #%d Created & Took binSemaphore %d\n\n", j, j); // debug
+        sprintf(testBuffer, "Setup 2: Task #%d Created & Took binSemaphore %d\n\n", j, j);
         Serial.print(testBuffer);
     }
 
     for(k = 0; k < NUM_TASKS; k++)
     {
         xSemaphoreTake(doneSemaphore, portMAX_DELAY);                           // All 5 philosophers have eaten
-        sprintf(testBuffer, "Setup 3: Task #%d Finished & Took doneSemaphore #%d\n\n", k, k);// debug
+        sprintf(testBuffer, "Setup 3: Task #%d Finished & Took doneSemaphore #%d\n\n", k, k);
         Serial.print(testBuffer);
     }
     
-    Serial.print("\nDONE! No Deadlock Occurred!\n");                              // Success Message
+    Serial.print("\nDONE! No Deadlock Occurred!\n");                            // Success Message
 }
 
 void loop() {}
