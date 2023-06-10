@@ -36,6 +36,7 @@ static int brightVal = 250;                                         // Brightnes
 static int fadeInterval = 5;                                        // LED fade interval
 static int delayInterval = 30;                                      // Delay between changing fade intervals
 static int patternType = 1;                                         // LED pattern type variable
+static uint8_t accessLEDCAnalog = 1;
 
 static QueueHandle_t msgQueue;
 
@@ -80,6 +81,7 @@ void userCLITask(void *param)                                       // Function 
                 Serial.print(input);
             }
         }
+        vTaskDelay(25 / portTICK_PERIOD_MS);                        // Don't hog the CPU
     }
 }
 
@@ -117,6 +119,7 @@ void msgRXTask(void *param)
                 delayInterval = ledDelay;                           // Change global delay variable
                 Serial.print("New Delay Value: ");
                 Serial.print(delayInterval);
+                Serial.print("ms");
                 Serial.print("\n");
             }
             else if(memcmp(someMsg.cmd, patternCmd, patternLen) == 0)// Check for 'pattern' command
@@ -125,18 +128,27 @@ void msgRXTask(void *param)
                 pattern = atoi(tailPtr);                            // retreive integer value at end of string
                 pattern = abs(pattern);                             // patternType can't be negative
                 patternType = pattern;                              // Change global pattern variable
-                Serial.print("New Pattern Type: ");
-                Serial.print(patternType);
-                Serial.print("\n");
+                if(patternType <= 4)
+                {
+                    Serial.print("New Pattern: ");
+                    Serial.print(patternType);
+                    Serial.print("\n");
+                }
             }
             else if(memcmp(someMsg.cmd, brightCmd, brightLen) == 0) // Check for 'bright' command
             {
                 char* tailPtr = someMsg.cmd + brightLen;            // pointer arithmetic: move pointer to integer value
                 bright = atoi(tailPtr);                             // retreive integer value at end of string
                 bright = abs(bright);                               // ledDelay can't be negative
+                if(bright >= 255)
+                {
+                    Serial.println("Maximum Value 255...");
+                    bright = 255;
+                }
                 brightVal = bright;                                 // Change global brightness variable
                 Serial.print("New Brightness: ");
                 Serial.print(brightVal);
+                Serial.print(" / 255");
                 Serial.print("\n");
             }
             else // Not a command: Print the message to the terminal
@@ -167,7 +179,13 @@ void RGBcolorWheelTask(void *param)
         {
             case 1:                                                 // Fade On/Off & cycle through 8 colors
             {
-                ledcAnalogWrite(LEDCchan, 0);
+                if(accessLEDCAnalog == 1)
+                {
+                    ledcAnalogWrite(LEDCchan, 0);                   // Only Need to do this ONCE
+                    accessLEDCAnalog = 0;
+                    //Serial.println("Case 1: accessLEDCAnalog = 0"); // debug
+                }
+                
                 brightness += fadeInterval;                         // Adjust brightness by fadeInterval
                 if(brightness <= 0)                                 // Only change color if value <= 0
                 {
@@ -185,12 +203,20 @@ void RGBcolorWheelTask(void *param)
                     brightness = 255;
                     fadeInterval = -fadeInterval;                   // Reverse fade effect
                 }
+                
                 FastLED.setBrightness(brightness);
+                FastLED.show();
                 break;
             }
             case 2:                                                 // Fade On/Off Red/Blue Police Pattern
             {
-                ledcAnalogWrite(LEDCchan, 0);
+                if(accessLEDCAnalog == 1)
+                {
+                    ledcAnalogWrite(LEDCchan, 0);                   // Only Need to do this ONCE
+                    accessLEDCAnalog = 0;
+                    //Serial.println("Case 2: accessLEDCAnalog = 0"); // debug
+                }
+                
                 brightness += fadeInterval;                         // Adjust brightness by fadeInterval
                 if(brightness <= 0)                                 // Only change color if value <= 0
                 {
@@ -211,25 +237,42 @@ void RGBcolorWheelTask(void *param)
                     brightness = 255;
                     fadeInterval = -fadeInterval;                   // Reverse fade effect
                 }
+                
                 FastLED.setBrightness(brightness);
+                FastLED.show();
                 break;
             }
             case 3:                                                 // Rotate Colors w/o fade
             {
-                ledcAnalogWrite(LEDCchan, 0);
+                if(accessLEDCAnalog == 1)
+                {
+                    ledcAnalogWrite(LEDCchan, 0);                   // Only Need to do this ONCE
+                    accessLEDCAnalog = 0;
+                    //Serial.println("Case 3: accessLEDCAnalog = 0"); // debug
+                }
+                
                 brightness = brightVal;                             // Pull value from global integer
                 hueVal += fadeInterval;                             // Change color based on global value
                 if(hueVal >= 255)
                 {
                     hueVal = 0;                         
                 }
+                
                 leds[0] = CHSV(hueVal, 255, 255);                   // Rotate Colors 0 - 255
                 FastLED.setBrightness(brightness);
+                FastLED.show();
                 break;
             }
             case 4:
             {
-                leds[0] = CRGB::Black;                              // Turn Off RGB LED
+                if(accessLEDCAnalog == 0)
+                {
+                    leds[0] = CRGB::Black;                          // Turn Off RGB LED
+                    FastLED.show();
+                    accessLEDCAnalog = 1;                           // Only need to do this ONCE
+                    //Serial.println("Case 4: accessLEDCAnalog = 1");
+                }
+
                 brightness += fadeInterval;                         // Adjust brightness by fadeInterval
                 if(brightness <= 0)                                 // Reverse fade effect at min/max values
                 {
@@ -241,17 +284,18 @@ void RGBcolorWheelTask(void *param)
                     brightness = 255;
                     fadeInterval = -fadeInterval;
                 }
+                
                 ledcAnalogWrite(LEDCchan, brightness);              // Set brightness on LEDC channel 0
                 break;
             }
             default:
             {
                 Serial.println("Invalid Selection: Defaulting to Pattern 1");
+                accessLEDCAnalog = 1;
                 patternType = 1;
                 break;
             }
         }
-        FastLED.show();
         vTaskDelay(delayInterval / portTICK_PERIOD_MS);             // CLI adjustable delay (non blocking)
     }
 }
