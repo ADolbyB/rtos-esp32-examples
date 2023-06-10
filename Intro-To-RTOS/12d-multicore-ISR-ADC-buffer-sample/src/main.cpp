@@ -20,7 +20,7 @@ enum { CMD_BUF_LEN = 255 };                                                     
 static const char avgCmd[] = "avg";
 static const uint16_t timerDivider = 8;                                         // 80MHz / 8 = 10MHz
 static const uint64_t timerMaxCount = 1000000;                                  // Timer counts to this value
-static const uint32_t CLIdelay = 10;
+static const uint32_t CLIdelay = 25;
 static const int ADCpin = A0;                                                   // ADC = GPIO_26 = A0;
 
 static portMUX_TYPE spinlock = portMUX_INITIALIZER_UNLOCKED;
@@ -141,11 +141,6 @@ void calcAvg(void *param)
     float localADCavg;
     int i;
 
-    timer = timerBegin(0, timerDivider, true);                                  // Instantiate Timer w/ divider: startVal = 0, dividerVal = 80, countUp = True
-    timerAttachInterrupt(timer, &ISRtimer, true);                               // Attach ISR to timer function, risingEdge = True
-    timerAlarmWrite(timer, timerMaxCount, true);                                // Trigger timer @ timerMaxCount, autoReload = True
-    timerAlarmEnable(timer);                                                    // Allow ISR to trigger via timer
-
     for(;;)
     {
         ulTaskNotifyTake(pdTRUE, portMAX_DELAY);                                // Wait for notification from ISR (similar to binary semaphore but FASTER)
@@ -211,6 +206,11 @@ void setup()
         &processTask,
         PRO_CPU
     );
+
+    timer = timerBegin(0, timerDivider, true);                                  // Instantiate Timer w/ divider: startVal = 0, dividerVal = 80, countUp = True
+    timerAttachInterrupt(timer, &ISRtimer, true);                               // Attach ISR to timer function, risingEdge = True
+    timerAlarmWrite(timer, timerMaxCount, true);                                // Trigger timer @ timerMaxCount, autoReload = True
+    timerAlarmEnable(timer);                                                    // Allow ISR to trigger via timer
 
     vTaskDelete(NULL);    
 }
