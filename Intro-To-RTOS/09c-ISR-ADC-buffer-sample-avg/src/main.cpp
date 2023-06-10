@@ -47,60 +47,6 @@ struct Message
     char msgBody[MSG_LEN];                                      // Queue elements for error messages
 };
 
-void IRAM_ATTR swap();                                          // Called from ISR to swap buffer pointers
-void IRAM_ATTR ISRtimer();                                      // Timer function stored in RAM
-void userCLI(void *param);                                      // Function for Serial Terminal CLI
-void calcAvg(void *param);                                      // Calculate average of 10 ADC values
-
-void setup()
-{
-    msgQueue = xQueueCreate(MSG_QUEUE_LEN, sizeof(Message));    // Instantiate queue to hold CLI commands
-    semDoneReading = xSemaphoreCreateBinary();                  // Instantiate semaphore to signal when ISR is done reading ADC
-
-    Serial.begin(115200);
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-    Serial.println("\n=>> FreeRTOS ADC Sample & Average Demo w/ CLI <<=");
-
-    if(semDoneReading == NULL)                                  // Restart ESP32 if the semaphore can't be created
-    {
-        Serial.println("ERROR: COULD NOT INSTANTIATE SEMAPHORE");
-        Serial.println("RESTARTING....");
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-        ESP.restart();                                          // Restart ESP32
-    }
-
-    xSemaphoreGive(semDoneReading);                             // Initialize the 'Done Reading' semaphore to 1
-
-    xTaskCreatePinnedToCore(                                    // Instatiate task to handle the user CLI
-        userCLI,
-        "User CLI Terminal",
-        1536,
-        NULL,
-        2,                                                      // Higher Priority, but only runs every 20ms
-        NULL,
-        app_cpu
-    );
-
-    xTaskCreatePinnedToCore(                                    // Instatiate task for ADC average value calculation
-        calcAvg,
-        "Calculate ADC Average",
-        1536,
-        NULL,
-        1,
-        &processingTask,                                        // Task Handle for notifications
-        app_cpu
-    );
-
-    timer = timerBegin(0, timerDivider, true);                  // instantiate 100ms timer for ISR: (Start Value, divider, Count Up)
-    timerAttachInterrupt(timer, &ISRtimer, true);               // Attach timer to ISR: (timer, function, Rising Edge)
-    timerAlarmWrite(timer, timerMaxCount, true);                // Attach ISR trigger to timer: (timer, count, Auto Reload)
-    timerAlarmEnable(timer);                                    // Enable ISR trigger
-    
-    vTaskDelete(NULL);                                          // Self delete setup() & loop() tasks
-}
-
-void loop() {}
-
 void IRAM_ATTR swap()                                           // Function can be called from anywhere
 {
     volatile uint16_t *tempPtr;                                 // Swaps the writeTo & readFrom pointers in the double buffer
@@ -116,8 +62,7 @@ void IRAM_ATTR ISRtimer()                                       // ISR function 
 
     if((index < BUF_LEN) && (bufOverrun == 0))                  // Read ADC if buffer is not overrun. Sample is dropped if buffer is overrun
     {
-        writeTo[index] = analogRead(ADCpin);                    // read & store in the next buffer element
-        index++;
+        writeTo[index++] = analogRead(ADCpin);                  // read & store in the next buffer element
     }
 
     if(index >= BUF_LEN)                                        // Check if buffer is full
@@ -138,10 +83,7 @@ void IRAM_ATTR ISRtimer()                                       // ISR function 
     {
         portYIELD_FROM_ISR();                                   // Exit from ISR
     }
-
-    /** Vanilla FreeRTOS version:
-     * portYIELD_FROM_ISR(taskWoken);                           // Exit from ISR (Vanilla FreeRTOS)
-    */
+    //portYIELD_FROM_ISR(taskWoken);                                            // Vanilla FreeRTOS
 }
 
 void userCLI(void *param)
@@ -167,15 +109,14 @@ void userCLI(void *param)
             
             if(index < CMD_BUF_LEN - 1)                         // if buffer is not full (255 char)
             {
-                commandBuf[index] = input;                      // Store characters in buffer
-                index++;
+                commandBuf[index++] = input;                    // Store characters in buffer
             }
 
             if(input == '\n')                                   // When user presses enter key
             {
                 Serial.print("\n");                             // print newline in Terminal
                 
-                commandBuf[index] = '\0';                       // NULL terminate buffer string
+                commandBuf[index - 1] = '\0';                   // NULL terminate buffer string
                 
                 //if(strcmp(commandBuf, termCommand) == 0)      // DIDNT WORK. REF: https://cplusplus.com/reference/cstring/strcmp/
                 if(memcmp(commandBuf, termCommand, cmdLen) == 0)// If User Enters "avg" into CLI: If no characters differ (strings are equal)
@@ -192,7 +133,7 @@ void userCLI(void *param)
                 memset(commandBuf, 0, CMD_BUF_LEN);             // Clear the buffer
                 index = 0;                                      // Reset index
             }
-            else
+            else // if(input != '\n')
             {
                 Serial.print(input);                            // Echo user entered characters to the Terminal
             }
@@ -235,3 +176,51 @@ void calcAvg(void *param)
         portEXIT_CRITICAL(&spinlock);
     }
 }
+
+void setup()
+{
+    semDoneReading = xSemaphoreCreateBinary();                  // Instantiate semaphore to signal when ISR is done reading ADC
+    if(semDoneReading == NULL)                                  // Restart ESP32 if the semaphore can't be created
+    {
+        Serial.println("ERROR: COULD NOT INSTANTIATE SEMAPHORE");
+        Serial.println("RESTARTING....");
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        ESP.restart();                                          // Restart ESP32
+    }
+
+    xSemaphoreGive(semDoneReading);                             // Initialize the 'Done Reading' semaphore to 1
+    msgQueue = xQueueCreate(MSG_QUEUE_LEN, sizeof(Message));    // Instantiate queue to hold CLI commands
+
+    Serial.begin(115200);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    Serial.println("\n=>> FreeRTOS ADC Sample & Average Demo w/ CLI <<=");
+
+    xTaskCreatePinnedToCore(                                    // Instatiate task to handle the user CLI
+        userCLI,
+        "User CLI Terminal",
+        1536,
+        NULL,
+        2,                                                      // Higher Priority, but only runs every 20ms
+        NULL,
+        app_cpu
+    );
+
+    xTaskCreatePinnedToCore(                                    // Instatiate task for ADC average value calculation
+        calcAvg,
+        "Calculate ADC Average",
+        1536,
+        NULL,
+        1,
+        &processingTask,                                        // Task Handle for notifications
+        app_cpu
+    );
+
+    timer = timerBegin(0, timerDivider, true);                  // instantiate 100ms timer for ISR: (Start Value, divider, Count Up)
+    timerAttachInterrupt(timer, &ISRtimer, true);               // Attach timer to ISR: (timer, function, Rising Edge)
+    timerAlarmWrite(timer, timerMaxCount, true);                // Attach ISR trigger to timer: (timer, count, Auto Reload)
+    timerAlarmEnable(timer);                                    // Enable ISR trigger
+    
+    vTaskDelete(NULL);                                          // Self delete setup() & loop() tasks
+}
+
+void loop() {}
