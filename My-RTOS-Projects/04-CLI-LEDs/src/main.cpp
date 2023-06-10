@@ -24,7 +24,7 @@ static const int LEDCchan = 0;                                      // use LEDC 
 static const int LEDCtimer = 12;                                    // 12-bit precision LEDC timer
 static const int LEDCfreq = 5000;                                   // 5000 Hz LEDC base freq.
 
-static const uint8_t bufLen = 255;                                  // Buffer Length setting for user CLI terminal
+static const uint8_t BUF_LEN = 255;                                 // Buffer Length setting for user CLI terminal
 static const char delayCmd[] = "delay ";                            // delay command definition
 static const char fadeCmd[] = "fade ";                              // fade command definition
 static const char patternCmd[] = "pattern ";                        // pattern command definition
@@ -51,10 +51,10 @@ void userCLITask(void *param)                                       // Function 
 {
     Command sendMsg;                                                // Declare user message
     char input;                                                     // Each char of user input                                             
-    char buffer[bufLen];                                            // buffer to hold user input
+    char buffer[BUF_LEN];                                           // buffer to hold user input
     uint8_t index = 0;                                              // character count
 
-    memset(buffer, 0, bufLen);                                      // Clear user input buffer
+    memset(buffer, 0, BUF_LEN);                                     // Clear user input buffer
 
     for(;;)
     {       
@@ -62,7 +62,7 @@ void userCLITask(void *param)                                       // Function 
         {
             input = Serial.read();                                  // read each character of user input
 
-            if(index < (bufLen - 1))
+            if(index < (BUF_LEN - 1))
             {
                 buffer[index] = input;                              // write received character to buffer
                 index++;
@@ -73,7 +73,7 @@ void userCLITask(void *param)                                       // Function 
                 strcpy(sendMsg.cmd, buffer);                        // copy input to Command node
                 xQueueSend(msgQueue, (void *)&sendMsg, 10);         // Send to msgQueue for interpretation
                 
-                memset(buffer, 0, bufLen);                          // Clear input buffer
+                memset(buffer, 0, BUF_LEN);                          // Clear input buffer
                 index = 0;                                          // Reset index counter.
             }
             else // echo each character back to the serial terminal
@@ -92,10 +92,13 @@ void msgRXTask(void *param)
     uint8_t fadeLen = strlen(fadeCmd);
     uint8_t patternLen = strlen(patternCmd);
     uint8_t brightLen = strlen(brightCmd);
+    char buffer[BUF_LEN];                                           // string buffer for Terminal Message
     short ledDelay;                                                 // blink delay in ms
     short fadeAmt;
     short pattern;
     short bright;
+
+    memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
 
     for(;;)
     {
@@ -107,9 +110,9 @@ void msgRXTask(void *param)
                 fadeAmt = atoi(tailPtr);                            // retreive integer value at end of string
                 fadeAmt = abs(fadeAmt);                             // fadeAmt can't be negative
                 fadeInterval = fadeAmt;                             // Change global fade variable
-                Serial.print("New Fade Value: ");
-                Serial.print(fadeAmt);                              // BUGFIX: sometimes displays negative number
-                Serial.print("\n");
+                sprintf(buffer, "New Fade Value: %d\n", fadeAmt);   // BUGFIX: sometimes displays negative number
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                         // Clear input buffer
             }
             else if(memcmp(someMsg.cmd, delayCmd, delayLen) == 0)   // Check for 'delay' command
             {
@@ -117,10 +120,9 @@ void msgRXTask(void *param)
                 ledDelay = atoi(tailPtr);                           // retreive integer value at end of string
                 ledDelay = abs(ledDelay);                           // ledDelay can't be negative
                 delayInterval = ledDelay;                           // Change global delay variable
-                Serial.print("New Delay Value: ");
-                Serial.print(delayInterval);
-                Serial.print("ms");
-                Serial.print("\n");
+                sprintf(buffer, "New Delay Value: %dms\n", delayInterval);
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                         // Clear input buffer
             }
             else if(memcmp(someMsg.cmd, patternCmd, patternLen) == 0)// Check for 'pattern' command
             {
@@ -130,9 +132,9 @@ void msgRXTask(void *param)
                 patternType = pattern;                              // Change global pattern variable
                 if(patternType <= 4)
                 {
-                    Serial.print("New Pattern: ");
-                    Serial.print(patternType);
-                    Serial.print("\n");
+                    sprintf(buffer, "New Pattern: %d\n", patternType);
+                    Serial.print(buffer);
+                    memset(buffer, 0, BUF_LEN);                     // Clear input buffer
                 }
             }
             else if(memcmp(someMsg.cmd, brightCmd, brightLen) == 0) // Check for 'bright' command
@@ -146,15 +148,15 @@ void msgRXTask(void *param)
                     bright = 255;
                 }
                 brightVal = bright;                                 // Change global brightness variable
-                Serial.print("New Brightness: ");
-                Serial.print(brightVal);
-                Serial.print(" / 255");
-                Serial.print("\n");
+                sprintf(buffer, "New Brightness: %d / 255\n", brightVal);
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                         // Clear input buffer
             }
             else // Not a command: Print the message to the terminal
             {
-                Serial.print("User Entered:  ");
-                Serial.print(someMsg.cmd);                          // print user message
+                sprintf(buffer, "User Entered:  %s\n", someMsg.cmd);// print user message
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                         // Clear input buffer             
             }
         }
     }
