@@ -362,6 +362,10 @@ void setup()
 
     Serial.println("RGB LED Task Instantiation Complete");          // debug
 
+    Serial.print("\nCPU Frequency is: ");
+    Serial.print(getCpuFrequencyMhz());
+    Serial.print("MHz");
+
     Serial.print("\n\nEnter \'delay xxx\' to change RGB Fade Speed\n");
     Serial.print("Enter \'fade xxx\' to change RGB Fade Amount\n");
     Serial.print("Enter \'pattern xxx\' to change RGB Pattern\n");
