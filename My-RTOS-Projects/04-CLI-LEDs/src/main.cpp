@@ -257,14 +257,35 @@ void RGBcolorWheelTask(void *param)
     FastLED.show();
     short hueVal = 0;                                               // add 32 each time...
     bool swap = false;                                              // Swap Red/Blue colors
+    bool lightsOff = false;
     uint8_t accessLEDCAnalog = 1;
 
     for(;;)
     {
         switch(patternType)
         {
+            case 0: // Turn Off Everything
+            {
+                if(lightsOff == false)
+                {
+                    lightsOff = true;
+                    if(accessLEDCAnalog == 0)
+                    {
+                        leds[0] = CRGB::Black;                          // Turn Off RGB LED
+                        FastLED.show();
+                        //accessLEDCAnalog = 1;                         // Only need to do this ONCE
+                    }
+                    else // RGB LED already off
+                    {
+                        ledcAnalogWrite(LEDCchan, 0);                   // Turn off Blue LED
+                    }
+                    Serial.println("Lights Out!!\n");
+                }
+                break;
+            }
             case 1:                                                 // Fade On/Off & cycle through 8 colors
             {
+                lightsOff = false;
                 if(accessLEDCAnalog == 1)
                 {
                     ledcAnalogWrite(LEDCchan, 0);                   // Only Need to do this ONCE
@@ -289,13 +310,13 @@ void RGBcolorWheelTask(void *param)
                     brightness = 255;
                     fadeInterval = -fadeInterval;                   // Reverse fade effect
                 }
-                
                 FastLED.setBrightness(brightness);
                 FastLED.show();
                 break;
             }
             case 2:                                                 // Fade On/Off Red/Blue Police Pattern
             {
+                lightsOff = false;
                 if(accessLEDCAnalog == 1)
                 {
                     ledcAnalogWrite(LEDCchan, 0);                   // Only Need to do this ONCE
@@ -330,6 +351,7 @@ void RGBcolorWheelTask(void *param)
             }
             case 3:                                                 // Rotate Colors w/o fade
             {
+                lightsOff = false;
                 if(accessLEDCAnalog == 1)
                 {
                     ledcAnalogWrite(LEDCchan, 0);                   // Only Need to do this ONCE
@@ -351,6 +373,7 @@ void RGBcolorWheelTask(void *param)
             }
             case 4:                                                 // Blue LED (Pin 13) Fades on/off
             {
+                lightsOff = false;
                 if(accessLEDCAnalog == 0)
                 {
                     leds[0] = CRGB::Black;                          // Turn Off RGB LED
@@ -376,6 +399,7 @@ void RGBcolorWheelTask(void *param)
             }
             case 5:                                                 // Blue LEF (pin 13) Blinks on/off
             {
+                lightsOff = false;
                 if(accessLEDCAnalog == 0)
                 {
                     leds[0] = CRGB::Black;                          // Turn Off RGB LED
