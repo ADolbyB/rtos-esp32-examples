@@ -29,13 +29,17 @@ static const char delayCmd[] = "delay ";                            // delay com
 static const char fadeCmd[] = "fade ";                              // fade command definition
 static const char patternCmd[] = "pattern ";                        // pattern command definition
 static const char brightCmd[] = "bright ";                          // brightness command (pattern 3 only)
+static const char cpuCmd[] = "cpu ";                                // cpu speed control command
+static const char getValues[] = "values";                           // show values of all user variables
+static const char getFreq[] = "freq";                               // show values for freq
 static const int msgQueueSize = 5;                                  // 5 elements in message Queue
 
 static int brightness = 65;                                         // Initial Brightness value
-static int brightVal = 250;                                         // Brightness Command initial value
+static int brightVal = 250;                                         // Brightness Command (Pattern 3) initial value
 static int fadeInterval = 5;                                        // LED fade interval
 static int delayInterval = 30;                                      // Delay between changing fade intervals
 static int patternType = 1;                                         // LED pattern type variable
+static int CPUFreq = 240;                                           // Default CPU speed = 240MHz
 static uint8_t accessLEDCAnalog = 1;
 
 static QueueHandle_t msgQueue;
@@ -73,7 +77,7 @@ void userCLITask(void *param)                                       // Function 
                 strcpy(sendMsg.cmd, buffer);                        // copy input to Command node
                 xQueueSend(msgQueue, (void *)&sendMsg, 10);         // Send to msgQueue for interpretation
                 
-                memset(buffer, 0, BUF_LEN);                          // Clear input buffer
+                memset(buffer, 0, BUF_LEN);                         // Clear input buffer
                 index = 0;                                          // Reset index counter.
             }
             else // echo each character back to the serial terminal
@@ -81,7 +85,7 @@ void userCLITask(void *param)                                       // Function 
                 Serial.print(input);
             }
         }
-        vTaskDelay(25 / portTICK_PERIOD_MS);                        // Don't hog the CPU
+        vTaskDelay(25 / portTICK_PERIOD_MS);                        // yield to other tasks
     }
 }
 
@@ -92,11 +96,15 @@ void msgRXTask(void *param)
     uint8_t fadeLen = strlen(fadeCmd);
     uint8_t patternLen = strlen(patternCmd);
     uint8_t brightLen = strlen(brightCmd);
+    uint8_t cpuLen = strlen(cpuCmd);
+    uint8_t valLen = strlen(getValues);
+    uint8_t freqLen = strlen(getFreq);
     char buffer[BUF_LEN];                                           // string buffer for Terminal Message
     short ledDelay;                                                 // blink delay in ms
     short fadeAmt;
     short pattern;
     short bright;
+    uint8_t cpuFreq;                                                // 0 - 240Mhz range
 
     memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
 
@@ -104,27 +112,27 @@ void msgRXTask(void *param)
     {
         if(xQueueReceive(msgQueue, (void *)&someMsg, 0) == pdTRUE)  // If message received in queue
         {
-            if(memcmp(someMsg.cmd, fadeCmd, fadeLen) == 0)          // Check for 'fade' command
+            if(memcmp(someMsg.cmd, fadeCmd, fadeLen) == 0)          // Check for `fade ` command
             {                                                       // Ref: https://cplusplus.com/reference/cstring/memcmp/
                 char* tailPtr = someMsg.cmd + fadeLen;              // pointer arithmetic: move pointer to integer value
                 fadeAmt = atoi(tailPtr);                            // retreive integer value at end of string
                 fadeAmt = abs(fadeAmt);                             // fadeAmt can't be negative
                 fadeInterval = fadeAmt;                             // Change global fade variable
-                sprintf(buffer, "New Fade Value: %d\n", fadeAmt);   // BUGFIX: sometimes displays negative number
+                sprintf(buffer, "New Fade Value: %d\n\n", fadeAmt);   // BUGFIX: sometimes displays negative number
                 Serial.print(buffer);
                 memset(buffer, 0, BUF_LEN);                         // Clear input buffer
             }
-            else if(memcmp(someMsg.cmd, delayCmd, delayLen) == 0)   // Check for 'delay' command
+            else if(memcmp(someMsg.cmd, delayCmd, delayLen) == 0)   // Check for `delay ` command
             {
                 char* tailPtr = someMsg.cmd + delayLen;             // pointer arithmetic: move pointer to integer value
                 ledDelay = atoi(tailPtr);                           // retreive integer value at end of string
                 ledDelay = abs(ledDelay);                           // ledDelay can't be negative
                 delayInterval = ledDelay;                           // Change global delay variable
-                sprintf(buffer, "New Delay Value: %dms\n", delayInterval);
+                sprintf(buffer, "New Delay Value: %dms\n\n", delayInterval);
                 Serial.print(buffer);
                 memset(buffer, 0, BUF_LEN);                         // Clear input buffer
             }
-            else if(memcmp(someMsg.cmd, patternCmd, patternLen) == 0)// Check for 'pattern' command
+            else if(memcmp(someMsg.cmd, patternCmd, patternLen) == 0)// Check for `pattern ` command
             {
                 char* tailPtr = someMsg.cmd + patternLen;           // pointer arithmetic: move pointer to integer value
                 pattern = atoi(tailPtr);                            // retreive integer value at end of string
@@ -132,12 +140,12 @@ void msgRXTask(void *param)
                 patternType = pattern;                              // Change global pattern variable
                 if(patternType <= 4)
                 {
-                    sprintf(buffer, "New Pattern: %d\n", patternType);
+                    sprintf(buffer, "New Pattern: %d\n\n", patternType);
                     Serial.print(buffer);
                     memset(buffer, 0, BUF_LEN);                     // Clear input buffer
                 }
             }
-            else if(memcmp(someMsg.cmd, brightCmd, brightLen) == 0) // Check for 'bright' command
+            else if(memcmp(someMsg.cmd, brightCmd, brightLen) == 0) // Check for `bright ` command
             {
                 char* tailPtr = someMsg.cmd + brightLen;            // pointer arithmetic: move pointer to integer value
                 bright = atoi(tailPtr);                             // retreive integer value at end of string
@@ -147,10 +155,55 @@ void msgRXTask(void *param)
                     Serial.println("Maximum Value 255...");
                     bright = 255;
                 }
-                brightVal = bright;                                 // Change global brightness variable
-                sprintf(buffer, "New Brightness: %d / 255\n", brightVal);
+                brightVal = bright;                                 // Change global `brightVal` variable
+                sprintf(buffer, "New Brightness: %d / 255\n\n", brightVal);
                 Serial.print(buffer);
                 memset(buffer, 0, BUF_LEN);                         // Clear input buffer
+            }
+            else if(memcmp(someMsg.cmd, cpuCmd, cpuLen) == 0)       // check for `cpu ` command
+            {
+                char* tailPtr = someMsg.cmd + cpuLen;
+                cpuFreq = atoi(tailPtr);
+                cpuFreq = abs(cpuFreq);
+                if(cpuFreq != 240 && cpuFreq != 160 && cpuFreq != 80)
+                {
+                    Serial.println("Invalid Input: Must Be 240, 160, or 80Mhz");
+                    Serial.println("Returning....\n");
+                    continue;
+                }
+                CPUFreq = cpuFreq;                                  // change global CPU Frequency
+                setCpuFrequencyMhz(CPUFreq);                        // Set New CPU Freq
+                vTaskDelay(15 / portTICK_PERIOD_MS);
+                sprintf(buffer, "\nNew CPU Frequency is: %dMHz\n\n", getCpuFrequencyMhz());
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer
+            }
+            else if(memcmp(someMsg.cmd, getValues, valLen) == 0)
+            {
+                sprintf(buffer, "\nCurrent Delay = %dms.           (default = 30ms)\n", delayInterval);
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer
+                sprintf(buffer, "Current Fade Interval = %d.      (default = 5)\n", abs(fadeInterval));
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer
+                sprintf(buffer, "Current Pattern = %d.            (default = 1)\n", patternType);
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer
+                sprintf(buffer, "Current Brightness = %d / 255. (default = 250)\n\n", brightVal);
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer
+            }
+            else if(memcmp(someMsg.cmd, getFreq, freqLen) == 0)
+            {
+                sprintf(buffer, "\nCPU Frequency is:  %d MHz", getCpuFrequencyMhz());
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
+                sprintf(buffer, "\nXTAL Frequency is: %d MHz", getXtalFrequencyMhz());
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN); 
+                sprintf(buffer, "\nAPB Freqency is:   %d MHz\n\n", (getApbFrequency() / 1000000));
+                Serial.print(buffer);
+                memset(buffer, 0, BUF_LEN);
             }
             else // Not a command: Print the message to the terminal
             {
@@ -159,6 +212,7 @@ void msgRXTask(void *param)
                 memset(buffer, 0, BUF_LEN);                         // Clear input buffer             
             }
         }
+        vTaskDelay(20 / portTICK_PERIOD_MS);                        // Yield to other tasks
     }
 }
 
@@ -308,6 +362,7 @@ void setup()
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     Serial.println("\n\n=>> FreeRTOS RGB LED Color Wheel Demo <<=");
 
+    char buffer[BUF_LEN];                                           // Buffer to cut down on setup() lines of code
     msgQueue = xQueueCreate(msgQueueSize, sizeof(Command));         // Instantiate message queue
 
     FastLED.addLeds <CHIPSET, RGB_LED, COLOR_ORDER> (leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
@@ -362,14 +417,13 @@ void setup()
 
     Serial.println("RGB LED Task Instantiation Complete");          // debug
 
-    Serial.print("\nCPU Frequency is: ");
-    Serial.print(getCpuFrequencyMhz());
-    Serial.print("MHz");
-
-    Serial.print("\n\nEnter \'delay xxx\' to change RGB Fade Speed\n");
-    Serial.print("Enter \'fade xxx\' to change RGB Fade Amount\n");
-    Serial.print("Enter \'pattern xxx\' to change RGB Pattern\n");
-    Serial.print("Enter \'bright xxx\' to change RGB Brightness (Only Pattern 3)\n");
+    Serial.print("\n\nEnter \'delay xxx\' to change RGB Fade Speed.\n");
+    Serial.print("Enter \'fade xxx\' to change RGB Fade Amount.\n");
+    Serial.print("Enter \'pattern xxx\' to change RGB Pattern.\n");
+    Serial.print("Enter \'bright xxx\' to change RGB Brightness (Only Pattern 3).\n");
+    Serial.print("Enter \'cpu xxx\' to change CPU Frequency.\n");
+    Serial.print("Enter \'values\' to retrieve current delay, fade, pattern & bright values.\n");
+    Serial.print("Enter \'freq\' to retrieve current CPU, XTAL & APB Frequencies.\n\n");
 
     vTaskDelete(NULL);                                              // Self Delete setup() & loop()
 }
