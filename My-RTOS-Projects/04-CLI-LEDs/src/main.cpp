@@ -71,7 +71,7 @@ void userCLITask(void *param)                                       // Function 
                 buffer[index] = input;                              // write received character to buffer
                 index++;
             }
-            
+
             if(input == '\n')                                       // Check when user presses ENTER key
             {
                 Serial.print("\n");
@@ -118,7 +118,12 @@ void msgRXTask(void *param)
                 char* tailPtr = someMsg.cmd + fadeLen;              // pointer arithmetic: move pointer to integer value
                 fadeAmt = atoi(tailPtr);                            // retreive integer value at end of string
                 fadeAmt = abs(fadeAmt);                             // fadeAmt can't be negative
-                
+                if(fadeAmt <= 0 || fadeAmt > 128)
+                {
+                    Serial.println("Value Must Be Between 1 & 128");
+                    Serial.println("Returning....");
+                    continue;
+                }
                 xSemaphoreTake(mutex1, portMAX_DELAY);              // enter critical section
                     fadeInterval = fadeAmt;                         // Change global fade variable
                 xSemaphoreGive(mutex1);
@@ -231,7 +236,7 @@ void msgRXTask(void *param)
             }
             else // Not a command: Print the message to the terminal
             {
-                sprintf(buffer, "Not A Command: %s\n", someMsg.cmd);// print user message
+                sprintf(buffer, "Invalid Command: %s\n", someMsg.cmd);// print user message
                 Serial.print(buffer);
                 memset(buffer, 0, BUF_LEN);                         // Clear input buffer             
             }
