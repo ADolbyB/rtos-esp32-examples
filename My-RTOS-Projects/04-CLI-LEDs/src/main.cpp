@@ -1,7 +1,7 @@
 /**
  * Joel Brigida
  * 5/31/2023
- * This is an RTOS Example that implements atomic tasks and controls the 2 LEDs
+ * This is an RTOS Example that implements semi-atomic tasks and controls the 2 LEDs
  * on the ESP32 Thing Plus C (GPIO_2 RGB LED & GPIO 13 Blue LED).
  */
 
@@ -19,6 +19,8 @@
 #define COLOR_ORDER GRB                                             // RGB LED in top right corner
 #define CHIPSET WS2812                                              // Chipset for On-Board RGB LED
 #define NUM_LEDS 1                                                  // Only 1 RGB LED on the ESP32 Thing Plus
+#define NUM_PATTERNS 5                                              // Total number of LED patterns
+CRGB leds[NUM_LEDS];                                                // Array for RGB LED on GPIO_2
 
 static const int LEDCchan = 0;                                      // use LEDC Channel 0 for Blue LED
 static const int LEDCtimer = 12;                                    // 12-bit precision LEDC timer
@@ -38,13 +40,11 @@ static int brightness = 65;                                         // Initial B
 static int brightVal = 250;                                         // Brightness Command (Pattern 3) initial value
 static int fadeInterval = 5;                                        // LED fade interval
 static int delayInterval = 30;                                      // Delay between changing fade intervals
-static int patternType = 1;                                         // LED pattern type variable
+static int patternType = 1;                                         // default LED pattern: case 1
 static int CPUFreq = 240;                                           // Default CPU speed = 240MHz
-static uint8_t accessLEDCAnalog = 1;
 
 static QueueHandle_t msgQueue;
-
-CRGB leds[NUM_LEDS];                                                // Array for RGB LED on GPIO_2
+static SemaphoreHandle_t mutex1;                                    // for `brightVal`, `fadeInterval`, `delayInterval`, `patternType` & `CPUFreq`
 
 struct Command                                                      // Struct for user Commands
 {
@@ -71,6 +71,7 @@ void userCLITask(void *param)                                       // Function 
                 buffer[index] = input;                              // write received character to buffer
                 index++;
             }
+            
             if(input == '\n')                                       // Check when user presses ENTER key
             {
                 Serial.print("\n");
@@ -99,12 +100,12 @@ void msgRXTask(void *param)
     uint8_t cpuLen = strlen(cpuCmd);
     uint8_t valLen = strlen(getValues);
     uint8_t freqLen = strlen(getFreq);
+    uint8_t cpuFreq;                                                // 80, 160 or 240Mhz
     char buffer[BUF_LEN];                                           // string buffer for Terminal Message
     short ledDelay;                                                 // blink delay in ms
     short fadeAmt;
     short pattern;
     short bright;
-    uint8_t cpuFreq;                                                // 0 - 240Mhz range
 
     memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
 
@@ -117,9 +118,13 @@ void msgRXTask(void *param)
                 char* tailPtr = someMsg.cmd + fadeLen;              // pointer arithmetic: move pointer to integer value
                 fadeAmt = atoi(tailPtr);                            // retreive integer value at end of string
                 fadeAmt = abs(fadeAmt);                             // fadeAmt can't be negative
-                fadeInterval = fadeAmt;                             // Change global fade variable
-                sprintf(buffer, "New Fade Value: %d\n\n", fadeAmt);   // BUGFIX: sometimes displays negative number
-                Serial.print(buffer);
+                
+                xSemaphoreTake(mutex1, portMAX_DELAY);              // enter critical section
+                    fadeInterval = fadeAmt;                         // Change global fade variable
+                xSemaphoreGive(mutex1);
+
+                sprintf(buffer, "New Fade Value: %d\n\n", fadeAmt); // BUGFIX: sometimes displays negative number
+                Serial.print(buffer);                
                 memset(buffer, 0, BUF_LEN);                         // Clear input buffer
             }
             else if(memcmp(someMsg.cmd, delayCmd, delayLen) == 0)   // Check for `delay ` command
@@ -127,8 +132,12 @@ void msgRXTask(void *param)
                 char* tailPtr = someMsg.cmd + delayLen;             // pointer arithmetic: move pointer to integer value
                 ledDelay = atoi(tailPtr);                           // retreive integer value at end of string
                 ledDelay = abs(ledDelay);                           // ledDelay can't be negative
-                delayInterval = ledDelay;                           // Change global delay variable
-                sprintf(buffer, "New Delay Value: %dms\n\n", delayInterval);
+                
+                xSemaphoreTake(mutex1, portMAX_DELAY);              // enter critical section
+                    delayInterval = ledDelay;                       // Change global delay variable
+                xSemaphoreGive(mutex1);
+                
+                sprintf(buffer, "New Delay Value: %dms\n\n", ledDelay);
                 Serial.print(buffer);
                 memset(buffer, 0, BUF_LEN);                         // Clear input buffer
             }
@@ -137,10 +146,14 @@ void msgRXTask(void *param)
                 char* tailPtr = someMsg.cmd + patternLen;           // pointer arithmetic: move pointer to integer value
                 pattern = atoi(tailPtr);                            // retreive integer value at end of string
                 pattern = abs(pattern);                             // patternType can't be negative
-                patternType = pattern;                              // Change global pattern variable
-                if(patternType <= 4)
+                
+                xSemaphoreTake(mutex1, portMAX_DELAY);              // enter critical section
+                    patternType = pattern;                          // Change global pattern variable
+                xSemaphoreGive(mutex1);                             // exit critical section
+
+                if(abs(pattern) <= NUM_PATTERNS)
                 {
-                    sprintf(buffer, "New Pattern: %d\n\n", patternType);
+                    sprintf(buffer, "New Pattern: %d\n\n", pattern);
                     Serial.print(buffer);
                     memset(buffer, 0, BUF_LEN);                     // Clear input buffer
                 }
@@ -155,8 +168,12 @@ void msgRXTask(void *param)
                     Serial.println("Maximum Value 255...");
                     bright = 255;
                 }
-                brightVal = bright;                                 // Change global `brightVal` variable
-                sprintf(buffer, "New Brightness: %d / 255\n\n", brightVal);
+                
+                xSemaphoreTake(mutex1, portMAX_DELAY);              // Start critical section
+                    brightVal = bright;                             // Change global `brightVal` variable
+                xSemaphoreGive(mutex1);                             // exit critical section
+                
+                sprintf(buffer, "New Brightness: %d / 255\n\n", bright);
                 Serial.print(buffer);
                 memset(buffer, 0, BUF_LEN);                         // Clear input buffer
             }
@@ -171,33 +188,40 @@ void msgRXTask(void *param)
                     Serial.println("Returning....\n");
                     continue;
                 }
-                CPUFreq = cpuFreq;                                  // change global CPU Frequency
-                setCpuFrequencyMhz(CPUFreq);                        // Set New CPU Freq
-                vTaskDelay(15 / portTICK_PERIOD_MS);
+
+                xSemaphoreTake(mutex1, portMAX_DELAY);              // Access Critical Section
+                    CPUFreq = cpuFreq;                              // change global CPU Frequency
+                    setCpuFrequencyMhz(CPUFreq);                    // Set New CPU Freq
+                xSemaphoreGive(mutex1);                             // Exit Critical Section
+
+                vTaskDelay(10 / portTICK_PERIOD_MS);
                 sprintf(buffer, "\nNew CPU Frequency is: %dMHz\n\n", getCpuFrequencyMhz());
                 Serial.print(buffer);
-                memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer
+                memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer;
             }
             else if(memcmp(someMsg.cmd, getValues, valLen) == 0)
             {
-                sprintf(buffer, "\nCurrent Delay = %dms.           (default = 30ms)\n", delayInterval);
-                Serial.print(buffer);
-                memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer
-                sprintf(buffer, "Current Fade Interval = %d.      (default = 5)\n", abs(fadeInterval));
-                Serial.print(buffer);
-                memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer
-                sprintf(buffer, "Current Pattern = %d.            (default = 1)\n", patternType);
-                Serial.print(buffer);
-                memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer
-                sprintf(buffer, "Current Brightness = %d / 255. (default = 250)\n\n", brightVal);
-                Serial.print(buffer);
-                memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer
+                xSemaphoreTake(mutex1, portMAX_DELAY);              // Access Critical Section
+                    sprintf(buffer, "\nCurrent Delay = %dms.           (default = 30ms)\n", delayInterval);
+                    Serial.print(buffer);
+                    memset(buffer, 0, BUF_LEN);
+                    sprintf(buffer, "Current Fade Interval = %d.      (default = 5)\n", abs(fadeInterval));
+                    Serial.print(buffer);
+                    memset(buffer, 0, BUF_LEN);
+                    sprintf(buffer, "Current Pattern = %d.            (default = 1)\n", patternType);
+                    Serial.print(buffer);
+                    memset(buffer, 0, BUF_LEN);
+                    sprintf(buffer, "Current Brightness = %d / 255. (default = 250)\n\n", brightVal);
+                    Serial.print(buffer);
+                    memset(buffer, 0, BUF_LEN);
+                xSemaphoreGive(mutex1);                             // Exit Critical Section
+
             }
             else if(memcmp(someMsg.cmd, getFreq, freqLen) == 0)
             {
                 sprintf(buffer, "\nCPU Frequency is:  %d MHz", getCpuFrequencyMhz());
                 Serial.print(buffer);
-                memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
+                memset(buffer, 0, BUF_LEN);
                 sprintf(buffer, "\nXTAL Frequency is: %d MHz", getXtalFrequencyMhz());
                 Serial.print(buffer);
                 memset(buffer, 0, BUF_LEN); 
@@ -207,7 +231,7 @@ void msgRXTask(void *param)
             }
             else // Not a command: Print the message to the terminal
             {
-                sprintf(buffer, "User Entered:  %s\n", someMsg.cmd);// print user message
+                sprintf(buffer, "Not A Command: %s\n", someMsg.cmd);// print user message
                 Serial.print(buffer);
                 memset(buffer, 0, BUF_LEN);                         // Clear input buffer             
             }
@@ -228,6 +252,7 @@ void RGBcolorWheelTask(void *param)
     FastLED.show();
     short hueVal = 0;                                               // add 32 each time...
     bool swap = false;                                              // Swap Red/Blue colors
+    uint8_t accessLEDCAnalog = 1;
 
     for(;;)
     {
@@ -319,7 +344,7 @@ void RGBcolorWheelTask(void *param)
                 FastLED.show();
                 break;
             }
-            case 4:
+            case 4:                                                 // Blue LED (Pin 13) Fades on/off
             {
                 if(accessLEDCAnalog == 0)
                 {
@@ -344,9 +369,30 @@ void RGBcolorWheelTask(void *param)
                 ledcAnalogWrite(LEDCchan, brightness);              // Set brightness on LEDC channel 0
                 break;
             }
+            case 5:                                                 // Blue LEF (pin 13) Blinks on/off
+            {
+                if(accessLEDCAnalog == 0)
+                {
+                    leds[0] = CRGB::Black;                          // Turn Off RGB LED
+                    FastLED.show();
+                    accessLEDCAnalog = 1;                           // Only need to do this ONCE
+                    //Serial.println("Case 5: accessLEDCAnalog = 1");
+                }
+                
+                swap = !swap;
+                if(swap)
+                {
+                    ledcAnalogWrite(LEDCchan, 255);
+                }
+                else
+                {
+                    ledcAnalogWrite(LEDCchan, 0);
+                }
+                break;
+            }
             default:
             {
-                Serial.println("Invalid Selection: Defaulting to Pattern 1");
+                Serial.println("Invalid Selection: Defaulting to Pattern 1\n");
                 accessLEDCAnalog = 1;
                 patternType = 1;
                 break;
@@ -358,33 +404,33 @@ void RGBcolorWheelTask(void *param)
 
 void setup()
 {
+    mutex1 = xSemaphoreCreateMutex();                               // Initialized to 1: For msgRXTask() which accesses global variables
+    msgQueue = xQueueCreate(msgQueueSize, sizeof(Command));         // Instantiate message queue
+
     Serial.begin(115200);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
     Serial.println("\n\n=>> FreeRTOS RGB LED Color Wheel Demo <<=");
 
-    char buffer[BUF_LEN];                                           // Buffer to cut down on setup() lines of code
-    msgQueue = xQueueCreate(msgQueueSize, sizeof(Command));         // Instantiate message queue
-
     FastLED.addLeds <CHIPSET, RGB_LED, COLOR_ORDER> (leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
     FastLED.setBrightness(brightness);
+    leds[0] = CRGB::White;                                          // Power up all Pin 2 LEDs for Power On Test
+    FastLED.show();
     
     ledcSetup(LEDCchan, LEDCfreq, LEDCtimer);                       // Setup LEDC timer 
     ledcAttachPin(BLUE_LED, LEDCchan);                              // Attach timer to LED pin
-
-    leds[0] = CRGB::White;                                          // Power up all Pin 2 LEDs for Power On Test
-    FastLED.show();
     vTaskDelay(2000 / portTICK_PERIOD_MS);                          // 2 Second Power On Delay
 
     Serial.println("Power On Test Complete...Starting Tasks");
 
     leds[0] = CRGB::Black;
     FastLED.show();
+    
     vTaskDelay(500 / portTICK_PERIOD_MS);                           // 0.5 Second off before Starting Tasks
 
     xTaskCreatePinnedToCore(                                        // Instantiate CLI Terminal
         userCLITask,
         "Serial CLI Terminal",
-        1536,
+        2048,
         NULL,
         1,
         NULL,
@@ -396,7 +442,7 @@ void setup()
     xTaskCreatePinnedToCore(                                        // Instantiate Message RX Task
         msgRXTask,
         "Receive Messages",
-        1536,
+        2048,
         NULL,
         1,
         NULL,
@@ -408,7 +454,7 @@ void setup()
     xTaskCreatePinnedToCore(                                        // Instantiate LED fade task
         RGBcolorWheelTask,
         "Fade and Rotate RGB",
-        1536,
+        2048,
         NULL,
         1,
         NULL,
