@@ -262,169 +262,153 @@ void RGBcolorWheelTask(void *param)
 
     for(;;)
     {
-        switch(patternType)
+        if(patternType == 1)                                        // Fade On/Off & cycle through 8 colors
         {
-            case 0: // Turn Off Everything
+            lightsOff = false;
+            if(accessLEDCAnalog == 1)
             {
-                if(lightsOff == false)
-                {
-                    lightsOff = true;
-                    if(accessLEDCAnalog == 0)
-                    {
-                        leds[0] = CRGB::Black;                          // Turn Off RGB LED
-                        FastLED.show();
-                        //accessLEDCAnalog = 1;                         // Only need to do this ONCE
-                    }
-                    else // RGB LED already off
-                    {
-                        ledcAnalogWrite(LEDCchan, 0);                   // Turn off Blue LED
-                    }
-                    Serial.println("Lights Out!!\n");
-                }
-                break;
+                ledcAnalogWrite(LEDCchan, 0);                       // Only Need to do this ONCE
+                accessLEDCAnalog = 0;
+                //Serial.println("Case 1: accessLEDCAnalog = 0"); // debug
             }
-            case 1:                                                 // Fade On/Off & cycle through 8 colors
+            
+            brightness += fadeInterval;                             // Adjust brightness by fadeInterval
+            if(brightness <= 0)                                     // Only change color if value <= 0
             {
-                lightsOff = false;
-                if(accessLEDCAnalog == 1)
-                {
-                    ledcAnalogWrite(LEDCchan, 0);                   // Only Need to do this ONCE
-                    accessLEDCAnalog = 0;
-                    //Serial.println("Case 1: accessLEDCAnalog = 0"); // debug
-                }
-                
-                brightness += fadeInterval;                         // Adjust brightness by fadeInterval
-                if(brightness <= 0)                                 // Only change color if value <= 0
-                {
-                    brightness = 0;
-                    fadeInterval = -fadeInterval;                   // Reverse fade effect
-                    hueVal += 32;                                   // Change color
-                    if(hueVal >= 255)
-                    {
-                        hueVal = 0;                         
-                    }
-                    leds[0] = CHSV(hueVal, 255, 255);               // Rotate: Rd-Orng-Yel-Grn-Aqua-Blu-Purp-Pnk
-                }
-                else if(brightness >= 255)
-                {
-                    brightness = 255;
-                    fadeInterval = -fadeInterval;                   // Reverse fade effect
-                }
-                FastLED.setBrightness(brightness);
-                FastLED.show();
-                break;
-            }
-            case 2:                                                 // Fade On/Off Red/Blue Police Pattern
-            {
-                lightsOff = false;
-                if(accessLEDCAnalog == 1)
-                {
-                    ledcAnalogWrite(LEDCchan, 0);                   // Only Need to do this ONCE
-                    accessLEDCAnalog = 0;
-                    //Serial.println("Case 2: accessLEDCAnalog = 0"); // debug
-                }
-                
-                brightness += fadeInterval;                         // Adjust brightness by fadeInterval
-                if(brightness <= 0)                                 // Only change color if value <= 0
-                {
-                    brightness = 0;
-                    fadeInterval = -fadeInterval;                   // Reverse fade effect
-                    swap = !swap;                                   // swap colors
-                    if(swap)
-                    {
-                        leds[0] = CRGB::Blue;
-                    }
-                    else
-                    {
-                        leds[0] = CRGB::Red;
-                    }
-                }
-                else if(brightness >= 255)
-                {
-                    brightness = 255;
-                    fadeInterval = -fadeInterval;                   // Reverse fade effect
-                }
-                
-                FastLED.setBrightness(brightness);
-                FastLED.show();
-                break;
-            }
-            case 3:                                                 // Rotate Colors w/o fade
-            {
-                lightsOff = false;
-                if(accessLEDCAnalog == 1)
-                {
-                    ledcAnalogWrite(LEDCchan, 0);                   // Only Need to do this ONCE
-                    accessLEDCAnalog = 0;
-                    //Serial.println("Case 3: accessLEDCAnalog = 0"); // debug
-                }
-                
-                brightness = brightVal;                             // Pull value from global integer
-                hueVal += fadeInterval;                             // Change color based on global value
+                brightness = 0;
+                fadeInterval = -fadeInterval;                       // Reverse fade effect
+                hueVal += 32;                                       // Change color
                 if(hueVal >= 255)
                 {
                     hueVal = 0;                         
                 }
-                
-                leds[0] = CHSV(hueVal, 255, 255);                   // Rotate Colors 0 - 255
-                FastLED.setBrightness(brightness);
-                FastLED.show();
-                break;
+                leds[0] = CHSV(hueVal, 255, 255);                   // Rotate: Rd-Orng-Yel-Grn-Aqua-Blu-Purp-Pnk
             }
-            case 4:                                                 // Blue LED (Pin 13) Fades on/off
+            else if(brightness >= 255)
             {
-                lightsOff = false;
-                if(accessLEDCAnalog == 0)
-                {
-                    leds[0] = CRGB::Black;                          // Turn Off RGB LED
-                    FastLED.show();
-                    accessLEDCAnalog = 1;                           // Only need to do this ONCE
-                    //Serial.println("Case 4: accessLEDCAnalog = 1");
-                }
-
-                brightness += fadeInterval;                         // Adjust brightness by fadeInterval
-                if(brightness <= 0)                                 // Reverse fade effect at min/max values
-                {
-                    brightness = 0;
-                    fadeInterval = -fadeInterval;
-                }
-                else if(brightness >= 255)
-                {
-                    brightness = 255;
-                    fadeInterval = -fadeInterval;
-                }
-                
-                ledcAnalogWrite(LEDCchan, brightness);              // Set brightness on LEDC channel 0
-                break;
+                brightness = 255;
+                fadeInterval = -fadeInterval;                       // Reverse fade effect
             }
-            case 5:                                                 // Blue LEF (pin 13) Blinks on/off
+            FastLED.setBrightness(brightness);
+            FastLED.show();
+        }
+        else if(patternType == 2)                                   // Fade On/Off Red/Blue Police Pattern
+        {
+            lightsOff = false;
+            if(accessLEDCAnalog == 1)
             {
-                lightsOff = false;
-                if(accessLEDCAnalog == 0)
-                {
-                    leds[0] = CRGB::Black;                          // Turn Off RGB LED
-                    FastLED.show();
-                    accessLEDCAnalog = 1;                           // Only need to do this ONCE
-                    //Serial.println("Case 5: accessLEDCAnalog = 1");
-                }
-                
-                swap = !swap;
+                ledcAnalogWrite(LEDCchan, 0);                       // Only Need to do this ONCE
+                accessLEDCAnalog = 0;
+                //Serial.println("Case 2: accessLEDCAnalog = 0");   // debug
+            }
+            
+            brightness += fadeInterval;                             // Adjust brightness by fadeInterval
+            if(brightness <= 0)                                     // Only change color if value <= 0
+            {
+                brightness = 0;
+                fadeInterval = -fadeInterval;                       // Reverse fade effect
+                swap = !swap;                                       // swap colors
                 if(swap)
                 {
-                    ledcAnalogWrite(LEDCchan, 255);
+                    leds[0] = CRGB::Blue;
                 }
                 else
                 {
-                    ledcAnalogWrite(LEDCchan, 0);
+                    leds[0] = CRGB::Red;
                 }
-                break;
             }
-            default:
+            else if(brightness >= 255)
             {
-                Serial.println("Invalid Selection: Defaulting to Pattern 1\n");
-                accessLEDCAnalog = 1;
-                patternType = 1;
-                break;
+                brightness = 255;
+                fadeInterval = -fadeInterval;                       // Reverse fade effect
+            }
+            
+            FastLED.setBrightness(brightness);
+            FastLED.show();
+        }
+        else if(patternType == 3)                                   // Rotate Colors w/o fade
+        {
+            lightsOff = false;
+            if(accessLEDCAnalog == 1)
+            {
+                ledcAnalogWrite(LEDCchan, 0);                       // Only Need to do this ONCE
+                accessLEDCAnalog = 0;
+                //Serial.println("Case 3: accessLEDCAnalog = 0");   // debug
+            }
+            
+            brightness = brightVal;                                 // Pull value from global integer
+            hueVal += fadeInterval;                                 // Change color based on global value
+            if(hueVal >= 255)
+            {
+                hueVal = 0;                         
+            }
+            
+            leds[0] = CHSV(hueVal, 255, 255);                       // Rotate Colors 0 - 255
+            FastLED.setBrightness(brightness);
+            FastLED.show();
+        }
+        else if(patternType == 4)                                   // Blue LED (Pin 13) Fades on/off
+        {
+            lightsOff = false;
+            if(accessLEDCAnalog == 0)
+            {
+                leds[0] = CRGB::Black;                              // Turn Off RGB LED
+                FastLED.show();
+                accessLEDCAnalog = 1;                               // Only need to do this ONCE
+                //Serial.println("Case 4: accessLEDCAnalog = 1");
+            }
+
+            brightness += fadeInterval;                             // Adjust brightness by fadeInterval
+            if(brightness <= 0)                                     // Reverse fade effect at min/max values
+            {
+                brightness = 0;
+                fadeInterval = -fadeInterval;
+            }
+            else if(brightness >= 255)
+            {
+                brightness = 255;
+                fadeInterval = -fadeInterval;
+            }
+            
+            ledcAnalogWrite(LEDCchan, brightness);                  // Set brightness on LEDC channel 0
+        }
+        else if(patternType == 5)                                   // Blue LED (pin 13) Cycles on/off
+        {
+            lightsOff = false;
+            if(accessLEDCAnalog == 0)
+            {
+                leds[0] = CRGB::Black;                              // Turn Off RGB LED
+                FastLED.show();
+                accessLEDCAnalog = 1;                               // Only need to do this ONCE
+                //Serial.println("Case 5: accessLEDCAnalog = 1");
+            }
+            
+            swap = !swap;
+            if(swap)
+            {
+                ledcAnalogWrite(LEDCchan, 255);
+            }
+            else
+            {
+                ledcAnalogWrite(LEDCchan, 0);
+            }
+        }
+        else                                                        // Turn Off Everything
+        {
+            if(lightsOff == false)
+            {
+                lightsOff = true;
+                if(accessLEDCAnalog == 0)
+                {
+                    leds[0] = CRGB::Black;                          // Turn Off RGB LED
+                    FastLED.show();
+                    //accessLEDCAnalog = 1;                         // Only need to do this ONCE
+                }
+                else // RGB LED already off
+                {
+                    ledcAnalogWrite(LEDCchan, 0);                   // Turn off Blue LED
+                }
+                Serial.println("Invalid Entry...Turning Lights Off!!\n");
             }
         }
         vTaskDelay(delayInterval / portTICK_PERIOD_MS);             // CLI adjustable delay (non blocking)
