@@ -41,10 +41,14 @@ static int brightVal = 250;                                         // Brightnes
 static int fadeInterval = 5;                                        // LED fade interval
 static int delayInterval = 30;                                      // Delay between changing fade intervals
 static int patternType = 1;                                         // default LED pattern: case 1
-static int CPUFreq = 240;                                           // Default CPU speed = 240MHz
+//static int CPUFreq = 240;                                           // Default CPU speed = 240MHz
 
-static QueueHandle_t msgQueue;
-static SemaphoreHandle_t mutex1;                                    // for `brightVal`, `fadeInterval`, `delayInterval`, `patternType` & `CPUFreq`
+static QueueHandle_t msgQueue;                                      // Queue for CLI messages
+static SemaphoreHandle_t mutex1;                                    // for `brightVal`, `fadeInterval`, `delayInterval` & `patternType`
+//static SemaphoreHandle_t brightValMutex;                            // Mutex for `brightVal`
+//static SemaphoreHandle_t fadeInttMutex;                             // Mutex for `fadeInterval`
+//static SemaphoreHandle_t delayIntMutex;                             // Mutex for `delayInteval`
+//static SemaphoreHandle_t patternMutex;                              // Mutex for `patternType`
 
 struct Command                                                      // Struct for user Commands
 {
@@ -100,7 +104,7 @@ void msgRXTask(void *param)
     uint8_t cpuLen = strlen(cpuCmd);
     uint8_t valLen = strlen(getValues);
     uint8_t freqLen = strlen(getFreq);
-    uint8_t cpuFreq;                                                // 80, 160 or 240Mhz
+    uint8_t localCPUFreq;                                           // 80, 160 or 240Mhz
     char buffer[BUF_LEN];                                           // string buffer for Terminal Message
     short ledDelay;                                                 // blink delay in ms
     short fadeAmt;
@@ -156,7 +160,7 @@ void msgRXTask(void *param)
                     patternType = pattern;                          // Change global pattern variable
                 xSemaphoreGive(mutex1);                             // exit critical section
 
-                if(abs(pattern) <= NUM_PATTERNS)
+                if(int(abs(pattern)) <= NUM_PATTERNS && int(pattern) != 0) // BUGFIX: "New Pattern: 0" with invalid entry
                 {
                     sprintf(buffer, "New Pattern: %d\n\n", pattern);
                     Serial.print(buffer);
@@ -185,21 +189,17 @@ void msgRXTask(void *param)
             else if(memcmp(someMsg.cmd, cpuCmd, cpuLen) == 0)       // check for `cpu ` command
             {
                 char* tailPtr = someMsg.cmd + cpuLen;
-                cpuFreq = atoi(tailPtr);
-                cpuFreq = abs(cpuFreq);
-                if(cpuFreq != 240 && cpuFreq != 160 && cpuFreq != 80)
+                localCPUFreq = atoi(tailPtr);
+                localCPUFreq = abs(localCPUFreq);
+                if(localCPUFreq != 240 && localCPUFreq != 160 && localCPUFreq != 80)
                 {
                     Serial.println("Invalid Input: Must Be 240, 160, or 80Mhz");
                     Serial.println("Returning....\n");
                     continue;
                 }
+                setCpuFrequencyMhz(localCPUFreq);                   // Set New CPU Freq
+                vTaskDelay(10 / portTICK_PERIOD_MS);                // yield for a brief moment
 
-                xSemaphoreTake(mutex1, portMAX_DELAY);              // Access Critical Section
-                    CPUFreq = cpuFreq;                              // change global CPU Frequency
-                    setCpuFrequencyMhz(CPUFreq);                    // Set New CPU Freq
-                xSemaphoreGive(mutex1);                             // Exit Critical Section
-
-                vTaskDelay(10 / portTICK_PERIOD_MS);
                 sprintf(buffer, "\nNew CPU Frequency is: %dMHz\n\n", getCpuFrequencyMhz());
                 Serial.print(buffer);
                 memset(buffer, 0, BUF_LEN);                         // Clear Input Buffer;
