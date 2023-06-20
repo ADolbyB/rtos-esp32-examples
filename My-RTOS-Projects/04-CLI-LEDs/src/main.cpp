@@ -5,7 +5,9 @@
  * on the ESP32 Thing Plus C (GPIO_2 RGB LED & GPIO 13 Blue LED).
  * The user types commands into the Serial CLI handled by `userCLITask`. There it is
  * checked if it is a valid command or not. If not a valid command, the message is printed 
- * to the terminal. If it is a valid command, it's sent to the `RGBcolorTask`
+ * to the terminal. If it is a valid command, it's sent to the `RGBcolorTask` to be parsed
+ * and the variables controlling LED output are changed inside that task.
+ * This program only runs/requires 1 CPU core
  */
 
 #include <Arduino.h>
@@ -41,7 +43,6 @@ static const int QueueSize = 5;                                         // 5 ele
 
 static QueueHandle_t msgQueue;                                          // Queue for CLI messages
 static QueueHandle_t cmdQueue;                                          // Queue to handle commands
-static SemaphoreHandle_t mutex1;                                        // mutex for operating in RGB task
 
 struct Message                                                          // Struct for CLI input
 {
