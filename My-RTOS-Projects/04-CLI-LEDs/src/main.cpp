@@ -3,6 +3,9 @@
  * 5/31/2023
  * This is an RTOS Example that implements semi-atomic tasks and controls the 2 LEDs
  * on the ESP32 Thing Plus C (GPIO_2 RGB LED & GPIO 13 Blue LED).
+ * The user types commands into the Serial CLI handled by `userCLITask`. There it is
+ * checked if it is a valid command or not. If not a valid command, the message is printed 
+ * to the terminal. If it is a valid command, it's sent to the `RGBcolorTask`
  */
 
 #include <Arduino.h>
@@ -127,49 +130,29 @@ void msgRXTask(void *param)
                     continue;
                 }
                 
-                //fadeInterval = fadeAmt;                               // Change global fade variable
-                // Send as a struct to the RGB task
-                
                 strcpy(someCmd.cmd, "fade");
                 someCmd.amount = fadeAmt;                               // copy input to Message node
                 xQueueSend(cmdQueue, (void *)&someCmd, 10);             // Send to cmdQueue for interpretation
-
-                // sprintf(buffer, "New Fade Value: %d\n\n", fadeAmt);  // BUGFIX: sometimes displays negative number
-                // Serial.print(buffer);                
-                // memset(buffer, 0, BUF_LEN);                          // Clear input buffer
             }
             else if(memcmp(someMsg.msg, delayCmd, delayLen) == 0)       // Check for `delay ` command
             {
                 char* tailPtr = someMsg.msg + delayLen;                 // pointer arithmetic: move pointer to integer value
                 ledDelay = atoi(tailPtr);                               // retreive integer value at end of string
                 ledDelay = abs(ledDelay);                               // ledDelay can't be negative
-                
-                //delayInterval = ledDelay;                             // Change global delay variable
+
                 strcpy(someCmd.cmd, "delay");
                 someCmd.amount = ledDelay;                              // copy input to Message node
-                xQueueSend(cmdQueue, (void *)&someCmd, 10);             // Send to cmdQueue for interpretation
-
-                // sprintf(buffer, "New Delay Value: %dms\n\n", ledDelay);
-                // Serial.print(buffer);
-                // memset(buffer, 0, BUF_LEN);                          // Clear input buffer
+                xQueueSend(cmdQueue, (void *)&someCmd, 10);             // Send to cmdQueue for interpretation                    // Clear input buffer
             }
             else if(memcmp(someMsg.msg, patternCmd, patternLen) == 0)   // Check for `pattern ` command
             {
                 char* tailPtr = someMsg.msg + patternLen;               // pointer arithmetic: move pointer to integer value
                 pattern = atoi(tailPtr);                                // retreive integer value at end of string
                 pattern = abs(pattern);                                 // patternType can't be negative
-                //patternType = pattern;                                // Change global pattern variable
 
                 strcpy(someCmd.cmd, "pattern");
                 someCmd.amount = pattern;                               // copy input to Message node
                 xQueueSend(cmdQueue, (void *)&someCmd, 10);             // Send to cmdQueue for interpretation
-
-                // if(int(abs(pattern)) <= NUM_PATTERNS && int(pattern) != 0) // BUGFIX: "New Pattern: 0" with invalid entry
-                // {
-                //     sprintf(buffer, "New Pattern: %d\n\n", pattern);
-                //     Serial.print(buffer);
-                //     memset(buffer, 0, BUF_LEN);                      // Clear input buffer
-                // }
             }
             else if(memcmp(someMsg.msg, brightCmd, brightLen) == 0)     // Check for `bright ` command
             {
@@ -180,16 +163,6 @@ void msgRXTask(void *param)
                 strcpy(someCmd.cmd, "bright");
                 someCmd.amount = bright;                                // copy input to Message node
                 xQueueSend(cmdQueue, (void *)&someCmd, 10);             // Send to cmdQueue for interpretation
-                // if(bright >= 255)
-                // {
-                //     Serial.println("Maximum Value 255...");
-                //     bright = 255;
-                // }
-                // brightVal = bright;                                  // Change global `brightVal` variable
-                
-                // sprintf(buffer, "New Brightness: %d / 255\n\n", bright);
-                // Serial.print(buffer);
-                // memset(buffer, 0, BUF_LEN);                          // Clear input buffer
             }
             else if(memcmp(someMsg.msg, cpuCmd, cpuLen) == 0)           // check for `cpu ` command
             {
@@ -200,53 +173,18 @@ void msgRXTask(void *param)
                 strcpy(someCmd.cmd, "cpu");
                 someCmd.amount = localCPUFreq;                          // copy input to Message node
                 xQueueSend(cmdQueue, (void *)&someCmd, 10);             // Send to cmdQueue for interpretation
-
-                // if(localCPUFreq != 240 && localCPUFreq != 160 && localCPUFreq != 80)
-                // {
-                //     Serial.println("Invalid Input: Must Be 240, 160, or 80Mhz");
-                //     Serial.println("Returning....\n");
-                //     continue;
-                // }
-                // setCpuFrequencyMhz(localCPUFreq);                    // Set New CPU Freq
-                // vTaskDelay(10 / portTICK_PERIOD_MS);                 // yield for a brief moment
-
-                // sprintf(buffer, "\nNew CPU Frequency is: %dMHz\n\n", getCpuFrequencyMhz());
-                // Serial.print(buffer);
-                // memset(buffer, 0, BUF_LEN);                          // Clear Input Buffer;
             }
             else if(memcmp(someMsg.msg, getValues, valLen) == 0)
             {
                 strcpy(someCmd.cmd, "values");
                 someCmd.amount = 0;                                     // copy input to Message node
                 xQueueSend(cmdQueue, (void *)&someCmd, 10);             // Send to cmdQueue for interpretation
-                
-                // sprintf(buffer, "\nCurrent Delay = %dms.           (default = 30ms)\n", delayInterval);
-                // Serial.print(buffer);
-                // memset(buffer, 0, BUF_LEN);
-                // sprintf(buffer, "Current Fade Interval = %d.      (default = 5)\n", abs(fadeInterval));
-                // Serial.print(buffer);
-                // memset(buffer, 0, BUF_LEN);
-                // sprintf(buffer, "Current Pattern = %d.            (default = 1)\n", patternType);
-                // Serial.print(buffer);
-                // memset(buffer, 0, BUF_LEN);
-                // sprintf(buffer, "Current Brightness = %d / 255. (default = 250)\n\n", brightVal);
-                // Serial.print(buffer);
-                // memset(buffer, 0, BUF_LEN);
             }
             else if(memcmp(someMsg.msg, getFreq, freqLen) == 0)
             {
                 strcpy(someCmd.cmd, "freq");
                 someCmd.amount = 0;                                     // copy input to Message node
                 xQueueSend(cmdQueue, (void *)&someCmd, 10);             // Send to cmdQueue for interpretation
-                // sprintf(buffer, "\nCPU Frequency is:  %d MHz", getCpuFrequencyMhz());
-                // Serial.print(buffer);
-                // memset(buffer, 0, BUF_LEN);
-                // sprintf(buffer, "\nXTAL Frequency is: %d MHz", getXtalFrequencyMhz());
-                // Serial.print(buffer);
-                // memset(buffer, 0, BUF_LEN); 
-                // sprintf(buffer, "\nAPB Freqency is:   %d MHz\n\n", (getApbFrequency() / 1000000));
-                // Serial.print(buffer);
-                // memset(buffer, 0, BUF_LEN);
             }
             else // Not a command: Print the message to the terminal
             {
@@ -268,13 +206,6 @@ void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 255)//
 void RGBcolorWheelTask(void *param)
 {
     Command someCmd;                                                    // Recieved from `msgRXTask`
-    // uint8_t fadeLen = strlen(fadeCmd);
-    // uint8_t delayLen = strlen(delayCmd);
-    // uint8_t patternLen = strlen(patternCmd);
-    // uint8_t brightLen = strlen(brightCmd);
-    // uint8_t cpuLen = strlen(cpuCmd);
-    // uint8_t valLen = strlen(getValues);
-    // uint8_t freqLen = strlen(getFreq);
     uint8_t localCPUFreq;
     char buffer[BUF_LEN];
      
@@ -296,7 +227,6 @@ void RGBcolorWheelTask(void *param)
         /* Command Handling */
         if(xQueueReceive(cmdQueue, (void *)&someCmd, 0) == pdTRUE)      // if command received from MSG QUEUE
         {
-            //xSemaphoreTake(mutex1, portMAX_DELAY);
             if(memcmp(someCmd.cmd, fadeCmd, 4) == 0)                    // if `fade` command rec'd (compare to global var)
             {
                 fadeInterval = someCmd.amount;
@@ -376,7 +306,6 @@ void RGBcolorWheelTask(void *param)
                 Serial.print(buffer);
                 memset(buffer, 0, BUF_LEN);
             }
-            //xSemaphoreGive(mutex1);
             vTaskDelay(10 / portTICK_PERIOD_MS);                        // yield briefly (only if command rec'd)
         }
         else /* Show LED Patterns */
@@ -533,7 +462,6 @@ void setup()
 {
     msgQueue = xQueueCreate(QueueSize, sizeof(Message));                // Instantiate message queue
     cmdQueue = xQueueCreate(QueueSize, sizeof(Command));                // Instantiate command queue
-    //mutex1 = xSemaphoreCreateMutex();
 
     Serial.begin(115200);
     vTaskDelay(1000 / portTICK_PERIOD_MS);
