@@ -46,7 +46,6 @@ static const char brightCmd[] = "bright ";                                      
 static const char cpuCmd[] = "cpu ";                                            // STRLEN = 4: cpu speed control command
 static const char getValues[] = "values";                                       // STRLEN = 6: show values of all user variables
 static const char getFreq[] = "freq";                                           // STRLEN = 4: show values for freq
-static const int QueueSize = 5;                                                 // 5 elements in either Queue
 
 static const char sdListCmds[] = "lscmd";                                       // STRLEN = 5: prints a list of SD commands (from msgQueue)
 static const char sdListDir[] = "lsdir ";                                       // STRLEN = 6: List subdirectories under given argument
@@ -62,6 +61,7 @@ static const char sdUsedSpace[] = "lsbytes";
 static QueueHandle_t msgQueue;                                                  // Queue for CLI messages
 static QueueHandle_t ledQueue;                                                  // Queue to LED commands
 static QueueHandle_t sdQueue;                                                   // Queue to handle SD card commands
+static const int QueueSize = 5;                                                 // 5 elements in any Queue
 
 struct Message                                                                  // Struct for CLI input
 {
@@ -328,6 +328,7 @@ void msgRXTask(void *param)         /*** CLI Input Validation / Handling ***/
 {
     Message someMsg;
     Command someCmd;
+    SDCommand sdCardCmd;
     uint8_t localCPUFreq;                                                       // 80, 160 or 240Mhz
     char buffer[BUF_LEN];                                                       // string buffer for Terminal Message
     short ledDelay;                                                             // blink delay in ms
@@ -415,43 +416,45 @@ void msgRXTask(void *param)         /*** CLI Input Validation / Handling ***/
                 xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
             }
             /* SD Card Commands */
-            else if(memcmp(someMsg.msg, sdListCmds, 5) == 0)                      // if `lscmd` command rec'd (compare to global var)
+            else if(memcmp(someMsg.msg, sdListCmds, 5) == 0)                    // if `lscmd` command rec'd (compare to global var)
             {             
-                // memset(buffer, 0, BUF_LEN); 
+                strcpy(sdCardCmd.cmd, "lsdir");
+                strcpy(sdCardCmd.msg, "");                                      // send empty string
+                xQueueSend(sdQueue, (void *)&someCmd, 10);                      // send to sdQueue
             }
-            else if(memcmp(someMsg.msg, sdListDir, 6) == 0)                       // if `lsdir ` command rec'd (compare to global var)
+            else if(memcmp(someMsg.msg, sdListDir, 6) == 0)                     // if `lsdir ` command rec'd (compare to global var)
             {
                 // memset(buffer, 0, BUF_LEN);  
             }
-            else if(memcmp(someMsg.msg, sdCreateDir, 6) == 0)                     // if `mkdir ` command rec'd (compare to global var)
+            else if(memcmp(someMsg.msg, sdCreateDir, 6) == 0)                   // if `mkdir ` command rec'd (compare to global var)
             {
 
             }
-            else if(memcmp(someMsg.msg, sdDeleteDir, 6) == 0)                     // if `rmdir ` command rec'd (compare to global var)
+            else if(memcmp(someMsg.msg, sdDeleteDir, 6) == 0)                   // if `rmdir ` command rec'd (compare to global var)
             {
                 // memset(buffer, 0, BUF_LEN);
             }
-            else if(memcmp(someMsg.msg, sdReadFile, 9) == 0)                      // if `readfile ` command rec'd (compare to global var)
+            else if(memcmp(someMsg.msg, sdReadFile, 9) == 0)                    // if `readfile ` command rec'd (compare to global var)
             {
 
             }       
-            else if(memcmp(someMsg.msg, sdWriteFile, 10) == 0)                    // if `writefile ` command rec'd
+            else if(memcmp(someMsg.msg, sdWriteFile, 10) == 0)                  // if `writefile ` command rec'd
             {
                 // memset(buffer, 0, BUF_LEN);
             }
-            else if(memcmp(someMsg.msg, sdAppendFile, 7) == 0)                    // if `append ` command rec'd
+            else if(memcmp(someMsg.msg, sdAppendFile, 7) == 0)                  // if `append ` command rec'd
             {
                 // memset(buffer, 0, BUF_LEN);
             }
-            else if(memcmp(someMsg.msg, sdRenameFile, 7) == 0)                    // if `rename ` command rec'd
+            else if(memcmp(someMsg.msg, sdRenameFile, 7) == 0)                  // if `rename ` command rec'd
             {
 
             }
-            else if(memcmp(someMsg.msg, sdDeleteFile, 7) == 0)                    // if `rmfile ` command rec'd
+            else if(memcmp(someMsg.msg, sdDeleteFile, 7) == 0)                  // if `rmfile ` command rec'd
             {
 
             }
-            else if(memcmp(someMsg.msg, sdUsedSpace, 7) == 0)                     // if `lsbytes` command rec'd
+            else if(memcmp(someMsg.msg, sdUsedSpace, 7) == 0)                   // if `lsbytes` command rec'd
             {
             
             }
@@ -715,7 +718,7 @@ void RGBcolorWheelTask(void *param)
 
 void SDCardTask(void *param) /*** Receives Valid Commands From msgRXTask ***/
 {
-    Command SDCmd;
+    SDCommand SDCmd;
     char buffer[BUF_LEN];
 
     /*** SD Command Handling ***/
@@ -723,7 +726,8 @@ void SDCardTask(void *param) /*** Receives Valid Commands From msgRXTask ***/
     {
         if(memcmp(SDCmd.cmd, sdListCmds, 5) == 0)                               // if `lscmd` command rec'd (compare to global var)
         {             
-            // memset(buffer, 0, BUF_LEN); 
+            char* tailPtr = SDCmd.cmd + 5;
+
         }
         else if(memcmp(SDCmd.cmd, sdListDir, 6) == 0)                           // if `lsdir ` command rec'd (compare to global var)
         {
@@ -759,10 +763,13 @@ void SDCardTask(void *param) /*** Receives Valid Commands From msgRXTask ***/
         }
         else if(memcmp(SDCmd.cmd, sdUsedSpace, 7) == 0)                         // if `lsbytes` command rec'd
         {
+            uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+            sprintf(buffer, "\n\nSD Card Size: %lluMB\n", cardSize);
+            memset(buffer, 0, BUF_LEN);
             sprintf(buffer, "Total space: %lluMB\n", SD.totalBytes() / (1024 * 1024));
             Serial.println(buffer);
             memset(buffer, 0, BUF_LEN);
-            sprintf(buffer, "Used space: %lluMB\n", SD.usedBytes() / (1024 * 1024));
+            sprintf(buffer, "Used space: %lluMB\n\n", SD.usedBytes() / (1024 * 1024));
             Serial.println(buffer);
             memset(buffer, 0, BUF_LEN);
         }
