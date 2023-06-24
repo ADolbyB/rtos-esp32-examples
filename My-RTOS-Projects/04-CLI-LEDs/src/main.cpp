@@ -12,7 +12,7 @@
 
 #include <Arduino.h>
 #include <FastLED.h>
-#include <SPI.h>
+#include "SPI.h" // can be <SPI.h>
 #include "FS.h"
 #include "SD.h"
 
@@ -85,6 +85,10 @@ void ledcAnalogWrite(uint8_t channel, uint32_t value, uint32_t valueMax = 255)  
     uint32_t duty = (4095 / valueMax) * min(value, valueMax);                   // calculate duty cycle: 2^12 - 1 = 4095
     ledcWrite(channel, duty);                                                   // write duty cycle to LEDC
 }
+
+/***************************************************************************************************************************/
+
+// SD Card Functions (testing)
 
 void listDir(fs::FS &fs, const char* dirname, uint8_t levels) 
 {
@@ -287,6 +291,10 @@ void testFileIO(fs::FS &fs, const char* path)
     file.close();
 }
 
+/*************************************************************************************************************************/
+
+/*** User CLI Start ***/                                                        /** Creates A Node dropped into The msgQueue ***/
+
 void userCLITask(void *param)                                                   // Function definition for user CLI task
 {
     Message sendMsg;                                                            // Declare user message
@@ -324,11 +332,11 @@ void userCLITask(void *param)                                                   
     }
 }
 
-void msgRXTask(void *param)         /*** CLI Input Validation / Handling ***/
+void msgRXTask(void *param) /*** CLI Input Validation / Handling ***/           /*** Analyze Each Node **/
 {
-    Message someMsg;
+    Message someMsg;                                                            // Each object given from the user
     Command someCmd;
-    SDCommand sdCardCmd;
+    SDCommand sdCardCmd;                                                        // New object for SD Card Comms
     uint8_t localCPUFreq;                                                       // 80, 160 or 240Mhz
     char buffer[BUF_LEN];                                                       // string buffer for Terminal Message
     short ledDelay;                                                             // blink delay in ms
@@ -415,23 +423,35 @@ void msgRXTask(void *param)         /*** CLI Input Validation / Handling ***/
                 someCmd.amount = 0;                                             // copy input to Message node
                 xQueueSend(ledQueue, (void *)&someCmd, 10);                     // Send to ledQueue for interpretation
             }
-            /* SD Card Commands */
+            
+            /*** SD Card Commands ***/                                          /* Start with 'List all commands' command */
+            
             else if(memcmp(someMsg.msg, sdListCmds, 5) == 0)                    // if `lscmd` command rec'd (compare to global var)
-            {             
-                strcpy(sdCardCmd.cmd, "lsdir");
-                strcpy(sdCardCmd.msg, "");                                      // send empty string
-                xQueueSend(sdQueue, (void *)&someCmd, 10);                      // send to sdQueue
+            {   
+                // send sdCardCmd over the sdQueue to perform an operation on the SD Card
+                strcpy(sdCardCmd.cmd, "lscmd");                                 // pass "lscmd" on to the SD card queue? Handle this over there instead.
+                strcpy(sdCardCmd.msg, "");                                      // send an empty string? maybe just call a txt that lists what the commands are?
+                xQueueSend(sdQueue, (void *)&someCmd, 10);                      // send `lscmd` to `sdQueue` ... wait 10ms if busy
             }
             else if(memcmp(someMsg.msg, sdListDir, 6) == 0)                     // if `lsdir ` command rec'd (compare to global var)
             {
+                // send sdCardCmd over the sdQueue to perform an operation on the SD Card
+                strcpy(sdCardCmd.cmd, "lsdir");                                 // pass "lsdir" on to the SD card queue...Handle this over there instead.
+                strcpy(sdCardCmd.msg, "");                                      // send empty string (no message)
+                xQueueSend(sdQueue, (void *)&someCmd, 10);                      // send `lscmd` to `sdQueue`
                 // memset(buffer, 0, BUF_LEN);  
             }
             else if(memcmp(someMsg.msg, sdCreateDir, 6) == 0)                   // if `mkdir ` command rec'd (compare to global var)
             {
 
+                // need to pass to the SD Queue...
+                // each element rec'd, handle in the proper queue...
+                // Found a Command to create dir...
+                // FW to sdCardQueue....handle it over there...
             }
             else if(memcmp(someMsg.msg, sdDeleteDir, 6) == 0)                   // if `rmdir ` command rec'd (compare to global var)
             {
+                // need a directory for a choice...parse string again....
                 // memset(buffer, 0, BUF_LEN);
             }
             else if(memcmp(someMsg.msg, sdReadFile, 9) == 0)                    // if `readfile ` command rec'd (compare to global var)
@@ -462,13 +482,15 @@ void msgRXTask(void *param)         /*** CLI Input Validation / Handling ***/
             {
                 sprintf(buffer, "Invalid Command: %s\n", someMsg.msg);          // print user message
                 Serial.print(buffer);
-                memset(buffer, 0, BUF_LEN);                                     // Clear input buffer             
+                memset(buffer, 0, BUF_LEN);                                     // Clear input buffer
             }
         }
         vTaskDelay(20 / portTICK_PERIOD_MS);                                    // Yield to other tasks
     }
 }
 
+/* TODO: This program should decide which queue gets which struct (Commmand, SDCommand, or Message). Currently that is not the case.***/
+// only decide which queue to send each object.
 void RGBcolorWheelTask(void *param)
 {
     Command someCmd;                                                            // Received from `msgRXTask`
@@ -716,7 +738,7 @@ void RGBcolorWheelTask(void *param)
     }
 }
 
-void SDCardTask(void *param) /*** Receives Valid Commands From msgRXTask ***/
+void SDCardTask(void *param) /*** Receives Valid Commands From `msgRXTask` where they are originally parsed e***/
 {
     SDCommand SDCmd;
     char buffer[BUF_LEN];
